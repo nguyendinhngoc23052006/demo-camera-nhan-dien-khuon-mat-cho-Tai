@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkEnrollment,
   checkPhoto,
+  DUPLICATE_THRESHOLD,
   distance,
   type Enrollment,
   isValidName,
@@ -15,20 +16,19 @@ import {
   normalizeName,
 } from "./faces";
 
-// Enrollment refuses a face this close to a different person.
-const RADIUS = MATCH_THRESHOLD;
+// Enrollment refuses a new name's face this close to a different person.
+const RADIUS = DUPLICATE_THRESHOLD;
 const EPS = MATCH_MARGIN / 4;
+// Cosine distance is computed in floating point, so "at the limit" is tested a hair either side.
+const TINY = 1e-9;
 
-// Offsets land on axes where the base is 0, so (0 + d) - 0 === d and boundary cases are exact.
-const PROBE_AXES = 8;
-const BASE: readonly number[] = Array.from({ length: 128 }, (_, i) =>
-  i < PROBE_AXES ? 0 : Math.sin(i) / 10,
-);
+const BASE: readonly number[] = Array.from({ length: 128 }, (_, i) => (i === 0 ? 1 : 0));
 
-/** A descriptor exactly `d` from BASE, moved along one probe axis. */
+/** A unit descriptor at cosine distance `d` from BASE, tilted towards one probe axis. */
 function away(d: number, axis = 0): number[] {
   const v = [...BASE];
-  v[axis] = d;
+  v[0] = 1 - d;
+  v[1 + axis] = Math.sqrt(1 - (1 - d) ** 2);
   return v;
 }
 
@@ -95,15 +95,20 @@ describe("distance", () => {
     expect(distance(BASE, [...BASE])).toBe(0);
   });
 
-  it("is euclidean and symmetric", () => {
-    expect(distance([1, 2], [4, 6])).toBe(5);
-    expect(distance([4, 6], [1, 2])).toBe(5);
-    expect(distance(BASE, away(MATCH_THRESHOLD))).toBe(MATCH_THRESHOLD);
-    expect(distance(away(3, 0), away(4, 1))).toBeCloseTo(5, 12);
+  it("is cosine distance: 1 for orthogonal, 2 for opposite, symmetric", () => {
+    expect(distance([1, 0], [0, 1])).toBe(1);
+    expect(distance([1, 0], [-1, 0])).toBe(2);
+    expect(distance(BASE, away(MATCH_THRESHOLD))).toBeCloseTo(MATCH_THRESHOLD, 12);
+    expect(distance(away(0.3, 0), BASE)).toBeCloseTo(distance(BASE, away(0.3, 0)), 12);
   });
 
-  it("accepts typed arrays", () => {
-    expect(distance(new Float32Array([0, 0]), [3, 4])).toBe(5);
+  it("ignores length, so un-normalised prints compare the same", () => {
+    expect(distance([2, 0], [5, 0])).toBe(0);
+    expect(distance(new Float32Array([3, 4]), [6, 8])).toBeCloseTo(0, 12);
+  });
+
+  it("is NaN for an all-zero print", () => {
+    expect(distance([0, 0], [1, 0])).toBeNaN();
   });
 
   it("throws on descriptors of different lengths", () => {
@@ -125,8 +130,8 @@ describe("matchFace", () => {
     });
   });
 
-  it("matches a person exactly at the threshold", () => {
-    expect(matchFace(BASE, [entry("Tài", away(MATCH_THRESHOLD))])).toMatchObject({
+  it("matches a person a hair inside the threshold", () => {
+    expect(matchFace(BASE, [entry("Tài", away(MATCH_THRESHOLD - TINY))])).toMatchObject({
       kind: "match",
       name: "Tài",
     });
@@ -144,11 +149,9 @@ describe("matchFace", () => {
       entry("Minh", away(best + MATCH_MARGIN - EPS, 1)),
       entry("Tài", away(best, 0)),
     ];
-    expect(matchFace(BASE, gallery)).toEqual({
-      kind: "unsure",
-      names: ["Tài", "Minh"],
-      distance: best,
-    });
+    const result = matchFace(BASE, gallery);
+    expect(result).toMatchObject({ kind: "unsure", names: ["Tài", "Minh"] });
+    expect(result.kind === "unsure" && result.distance).toBeCloseTo(best, 12);
   });
 
   it("matches when the runner-up is just beyond the margin", () => {
@@ -157,11 +160,13 @@ describe("matchFace", () => {
       entry("Tài", away(best, 0)),
       entry("Minh", away(best + MATCH_MARGIN + EPS, 1)),
     ];
-    expect(matchFace(BASE, gallery)).toEqual({ kind: "match", name: "Tài", distance: best });
+    const result = matchFace(BASE, gallery);
+    expect(result).toMatchObject({ kind: "match", name: "Tài" });
+    expect(result.kind === "match" && result.distance).toBeCloseTo(best, 12);
   });
 
-  it("matches when the runner-up is exactly the margin behind", () => {
-    const gallery = [entry("Tài", away(0, 0)), entry("Minh", away(MATCH_MARGIN, 1))];
+  it("matches when the runner-up is a hair more than the margin behind", () => {
+    const gallery = [entry("Tài", away(0, 0)), entry("Minh", away(MATCH_MARGIN + TINY, 1))];
     expect(matchFace(BASE, gallery)).toMatchObject({ kind: "match", name: "Tài" });
   });
 
@@ -175,7 +180,9 @@ describe("matchFace", () => {
 
   it("counts two samples of one name as one person, never unsure against yourself", () => {
     const gallery = [entry("Tài", away(EPS, 0)), entry("Tài", away(EPS * 2, 1))];
-    expect(matchFace(BASE, gallery)).toEqual({ kind: "match", name: "Tài", distance: EPS });
+    const result = matchFace(BASE, gallery);
+    expect(result).toMatchObject({ kind: "match", name: "Tài" });
+    expect(result.kind === "match" && result.distance).toBeCloseTo(EPS, 12);
   });
 
   it("groups samples by name key and shows the earliest sample's name", () => {
@@ -183,7 +190,9 @@ describe("matchFace", () => {
       entry("Tài", away(MATCH_THRESHOLD + MATCH_MARGIN * 2, 0)),
       entry("  tài ", away(EPS, 1)),
     ];
-    expect(matchFace(BASE, gallery)).toEqual({ kind: "match", name: "Tài", distance: EPS });
+    const result = matchFace(BASE, gallery);
+    expect(result).toMatchObject({ kind: "match", name: "Tài" });
+    expect(result.kind === "match" && result.distance).toBeCloseTo(EPS, 12);
   });
 
   it("uses a person's nearest sample, not their first one", () => {
@@ -233,14 +242,15 @@ describe("checkEnrollment", () => {
     expect(!result.ok && result.message).toContain("Minh");
   });
 
-  it("rejects a face exactly at the threshold from someone else", () => {
-    expect(checkEnrollment("Tài", BASE, [entry("Minh", away(RADIUS))])).toMatchObject({
+  it("rejects a face a hair inside the duplicate limit from someone else", () => {
+    expect(checkEnrollment("Tài", BASE, [entry("Minh", away(RADIUS - TINY))])).toMatchObject({
       ok: false,
       error: "looks-like-someone-else",
     });
   });
 
-  it("accepts a face just beyond the threshold from everyone else", () => {
+  it("accepts a look-alike past the duplicate limit even inside the match threshold", () => {
+    expect(RADIUS + EPS).toBeLessThan(MATCH_THRESHOLD);
     expect(checkEnrollment("Tài", BASE, [entry("Minh", away(RADIUS + EPS))])).toEqual({
       ok: true,
       name: "Tài",
@@ -266,8 +276,8 @@ describe("checkEnrollment", () => {
     expect(checkEnrollment("  tài ", BASE, gallery)).toEqual({ ok: true, name: "Tài" });
   });
 
-  it("accepts another photo exactly at the threshold from that person", () => {
-    expect(checkEnrollment("Tài", BASE, [entry("Tài", away(MATCH_THRESHOLD))])).toEqual({
+  it("accepts another photo a hair inside the threshold from that person", () => {
+    expect(checkEnrollment("Tài", BASE, [entry("Tài", away(MATCH_THRESHOLD - TINY))])).toEqual({
       ok: true,
       name: "Tài",
     });

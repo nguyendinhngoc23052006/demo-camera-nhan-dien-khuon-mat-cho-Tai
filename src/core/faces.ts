@@ -1,12 +1,22 @@
-// Calibrated 2026-09 on face-api's fixture faces (8 people x 5 photos): same-person distances had a
-// median of 0.44, different people never came closer than 0.59.
-/** Max euclidean distance to accept a face as someone. (face-api's own default is 0.6; we are stricter.) */
-export const MATCH_THRESHOLD = 0.55;
+// Face prints come from OpenCV's SFace and are compared by cosine distance (1 − cosine similarity):
+// 0 = same direction, larger = less alike. Calibrated 2026-09 on 123 people / 808 photos across six
+// ethnic groups, choosing values by the WORST group, not the average.
+/**
+ * Max distance to accept a face as someone. OpenCV's published SFace threshold (cosine similarity
+ * 0.363); it kept every group's false-match rate at or below 1%.
+ */
+export const MATCH_THRESHOLD = 0.637;
 /** The best person must beat the runner-up person by at least this much, or the answer is "unsure". */
-export const MATCH_MARGIN = 0.08;
+export const MATCH_MARGIN = 0.1;
+/**
+ * Adding a face under a new name is refused only when it is this close to someone else — stricter
+ * than MATCH_THRESHOLD, so look-alike colleagues can still both be added; if the camera later
+ * hesitates between them, MATCH_MARGIN shows "Not sure" instead of a wrong name.
+ */
+export const DUPLICATE_THRESHOLD = 0.536;
 export const MAX_NAME_LENGTH = 40;
-/** Enrollment photo quality floor. Real, slightly angled faces score 0.6–0.8, so 0.8 refused good photos. */
-export const MIN_FACE_SCORE = 0.6;
+/** Enrollment photo quality floor. YuNet scored every real test photo 0.85 or higher. */
+export const MIN_FACE_SCORE = 0.8;
 export const MIN_FACE_SIZE = 80; // px, shorter side of the detected box
 
 export interface Enrollment {
@@ -32,16 +42,22 @@ export function isValidName(name: string): boolean {
   );
 }
 
+/** Cosine distance. A zero-length print gives NaN, which every rule treats as "no match". */
 export function distance(a: ArrayLike<number>, b: ArrayLike<number>): number {
   if (a.length !== b.length) {
     throw new RangeError(`Face descriptors differ in length: ${a.length} vs ${b.length}`);
   }
-  let sum = 0;
+  let dot = 0;
+  let aa = 0;
+  let bb = 0;
   for (let i = 0; i < a.length; i++) {
-    const d = (a[i] as number) - (b[i] as number);
-    sum += d * d;
+    const x = a[i] as number;
+    const y = b[i] as number;
+    dot += x * y;
+    aa += x * x;
+    bb += y * y;
   }
-  return Math.sqrt(sum);
+  return 1 - dot / Math.sqrt(aa * bb);
 }
 
 export type MatchResult =
@@ -101,11 +117,8 @@ export function checkEnrollment(
   const key = nameKey(name);
   const ranked = rankPersons(descriptor, gallery);
 
-  // Refuse only faces the camera would already take for someone else. A wider radius (threshold +
-  // margin) refused ~2% of pairs of different people in calibration, which compounds with every
-  // person added; faces just outside the threshold are left to the camera's "unsure" margin.
   const other = ranked.find((p) => p.key !== key);
-  if (other && other.distance <= MATCH_THRESHOLD) {
+  if (other && other.distance <= DUPLICATE_THRESHOLD) {
     return {
       ok: false,
       error: "looks-like-someone-else",

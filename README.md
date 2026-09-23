@@ -14,7 +14,10 @@ and writes who it is. Everything runs inside one browser tab — no server, no d
 
 ## The margin rules — how it avoids mixing people up
 
-Two face prints are compared by their *distance*: 0 is identical, and smaller means more alike.
+Faces are found by **YuNet** and turned into face prints by **SFace** — both OpenCV models, run
+in the browser by opencv.js. Two face prints are compared by their *distance* (cosine distance):
+0 is identical, and smaller means more alike. The limits were tuned on 123 people across six ethnic
+groups and chosen by the group the model handles *worst*, so no group gets mixed up more than the others.
 Every `CONSTANT` below lives in `src/core/faces.ts`, the only file that decides who someone is —
 read its current value there (this page names them so it never goes stale).
 
@@ -23,9 +26,10 @@ read its current value there (this page names them so it never goes stale).
   `MIN_FACE_SCORE` sure. Otherwise you see "No face found", "This photo has N faces", "too small"
   or "isn't clear enough". A close-up where the face fills the whole photo is retried with a border
   around it, because the detector misses faces with no background.
-- **"Looks like someone else"** (adding): a face within `MATCH_THRESHOLD` of a person under a
-  *different* name is refused — the camera would already call it that person. Usually it is the same
-  person under a second name.
+- **"Looks like someone else"** (adding): a face within `DUPLICATE_THRESHOLD` of a person under a
+  *different* name is refused — almost certainly the same person under a second name. This limit is
+  stricter than `MATCH_THRESHOLD` on purpose, so two colleagues who merely look alike can both be
+  added; if the camera then hesitates between them it says **Not sure** instead of guessing.
 - **"Not the same person"** (adding): if the name already exists but the new face is farther than
   `MATCH_THRESHOLD` from *every* photo of that person, it is refused — someone else using
   their name. A matching photo is accepted as an extra photo (more angles = better recognition).
@@ -61,7 +65,7 @@ deploys there too (a Worker with only static assets) — ask Claude if you want 
   another tab, browser or device starts empty; nothing is shared.
 - Closing the tab erases every face. Reloading keeps them.
 - The camera needs HTTPS (or `localhost`). `*.pages.dev` is HTTPS. Allow the camera when asked.
-- The first load downloads about 12 MB of face models; wait for the loading status to finish.
+- The first load downloads about 22 MB (OpenCV plus two face models); wait for the loading status to finish.
 - Best results: good light, face the camera, 2–3 photos per person from slightly different angles.
 
 ## Tuning
@@ -70,9 +74,10 @@ All in `src/core/faces.ts`. "Safe" = trades convenience for fewer wrong names.
 
 | Constant | Controls | Safe direction |
 |---|---|---|
-| `MATCH_THRESHOLD` | How close a face must be to count as someone | **Down**: fewer wrong names, more "Unknown". Never above 0.6, face-api's own default. |
+| `MATCH_THRESHOLD` | How close a face must be to count as someone | **Down**: fewer wrong names, more "Unknown". Its value is OpenCV's published SFace threshold. |
+| `DUPLICATE_THRESHOLD` | How close a new face must be to someone else's to be refused | **Down**: fewer refusals of look-alikes, more reliance on "Not sure". Keep it below `MATCH_THRESHOLD`. |
 | `MATCH_MARGIN` | How clearly the best person must beat the runner-up | **Up**: more "Not sure", fewer mix-ups. |
-| `MIN_FACE_SCORE` | How sure the detector must be about an added photo | **Up**: sharper photos only. Below 0.5 does nothing — detection itself stops at 0.5 (`src/vision.ts`). |
+| `MIN_FACE_SCORE` | How sure the detector must be about an added photo | **Up**: sharper photos only. Below 0.6 does nothing — detection itself stops at 0.6 (`src/vision.ts`). |
 | `MIN_FACE_SIZE` | Smallest face (px) accepted when adding | **Up**: close-ups only, better face prints. |
 | `MAX_NAME_LENGTH` | Longest name | Either way; the name box follows it. |
 
@@ -91,10 +96,11 @@ npm run build      # copy models, build dist/
 npm run preview    # serve dist/
 ```
 
-`scripts/copy-models.mjs` copies the 6 model files from `node_modules/@vladmandic/face-api/model/`
-into `public/models/` (gitignored). `.github/workflows/ci.yml` runs lint → typecheck → test → build
+`scripts/copy-models.mjs` checks the SHA-256 of the two model files in `models/` (committed — they
+are not on npm; sources and licences in `models/README.md`) and of opencv.js from `node_modules`,
+then copies them into `public/` (gitignored). A changed file fails the build. `.github/workflows/ci.yml` runs lint → typecheck → test → build
 on every pull request and push to `main`. Code map: `src/core/faces.ts` rules · `src/vision.ts`
-face-api · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camera.ts` Camera ·
+OpenCV · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camera.ts` Camera ·
 `src/main.ts` tabs and status.
 
 ## Undo
@@ -106,9 +112,8 @@ face-api · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camer
 ## What would break it
 
 - **Camera blocked or missing** — the page says so. Fix: the icon left of the address → site settings → Camera → Allow, then **Try again**.
-- **face-api is archived** (upstream stopped 2025-02-05). It is pinned exactly at `1.7.15` and it and
-  its models are served from this site, so nothing outside can change or remove them — but no fix
-  will come if a future browser breaks it.
+- **Model files changed** — the thresholds were tuned on these exact files, so the build refuses
+  any other version (checksum mismatch). Swapping a model means re-tuning `src/core/faces.ts`.
 - **Storage blocked** (some private modes or strict settings) — an on-screen warning: "This browser
   blocks storage — faces will be forgotten on reload." Everything else still works.
 - **Storage full** — sessionStorage holds about 5 MB per site. Each photo (≤ 640 px JPEG) plus its

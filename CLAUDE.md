@@ -5,8 +5,9 @@ sees. Everything happens inside one browser tab; Cloudflare Pages only serves th
 
 ## Stack
 
-Vite + vanilla TypeScript · Biome · Vitest · `@vladmandic/face-api` · Cloudflare Pages Git build
-(`npm run build` → `dist`) · Node from `.node-version` (Pages and CI both read it). Nothing else.
+Vite + vanilla TypeScript · Biome · Vitest · opencv.js (`@techstark/opencv-js`) running the OpenCV
+Zoo models YuNet + SFace · Cloudflare Pages Git build (`npm run build` → `dist`) · Node from
+`.node-version` (Pages and CI both read it). Nothing else.
 
 ## The rules that cannot be broken
 
@@ -18,12 +19,13 @@ Vite + vanilla TypeScript · Biome · Vitest · `@vladmandic/face-api` · Cloudf
    no DOM, no imports.
 3. **Tests are relative to the constants** (`MATCH_THRESHOLD - 0.01`), never literal numbers, so
    re-tuning a constant never touches a test.
-4. **One door each.** `src/vision.ts` is the only file importing face-api; `src/gallery.ts` the
+4. **One door each.** `src/vision.ts` is the only file touching OpenCV; `src/gallery.ts` the
    only file touching storage.
 5. **Names reach the screen via `textContent` or canvas `fillText` only** — never `innerHTML` with data.
-6. **face-api is pinned exactly (`1.7.15`, upstream archived).** Never a range, never a CDN. Model
-   weights are copied from `node_modules` to `public/models/` by `scripts/copy-models.mjs` at
-   dev/build time and are never committed.
+6. **Models are pinned by checksum.** opencv.js is pinned exactly in `package.json`; YuNet and
+   SFace live in `models/` (not on npm) with their licences. `scripts/copy-models.mjs` verifies all
+   three SHA-256s and copies them to `public/` at dev/build time. Never a CDN. A new model means
+   re-tuning the constants on a multi-ethnic test set, judged by the worst group.
 7. **No audio, nothing recorded.** Camera frames are analysed and discarded.
 8. **Fail on screen.** Models, camera and storage failures are visible messages, not console lines.
 

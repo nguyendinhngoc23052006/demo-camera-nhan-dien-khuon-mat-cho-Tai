@@ -116,8 +116,7 @@ export function createCameraView(options: { onAddFace: () => void }) {
   const addFace = byId<HTMLButtonElement>("camera-add");
   const facesList = byId<HTMLUListElement>("camera-faces");
   const ctx = overlay.getContext("2d");
-  // face-api re-reads a <video> at each of its three stages, so boxes and face prints would come
-  // from different frames. One still per tick gives every stage, and the drawn box, the same pixels.
+  // Detect on one still per tick, so the face print, the box and the drawn frame share the same pixels.
   const still = document.createElement("canvas");
   const stillCtx = still.getContext("2d");
 

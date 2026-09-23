@@ -12,13 +12,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@vladmandic/face-api": "1.7.15"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "@techstark/opencv-js": "4.12.0-release.1"
   }
 }

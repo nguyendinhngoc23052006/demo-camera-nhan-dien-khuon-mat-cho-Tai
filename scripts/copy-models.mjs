@@ -1,28 +1,43 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const from = join(root, "node_modules", "@vladmandic", "face-api", "model");
-const to = join(root, "public", "models");
+const opencv = join(root, "node_modules", "@techstark", "opencv-js", "dist", "opencv.js");
 
+// source → destination under public/, with the SHA-256 the face thresholds were calibrated on.
 const FILES = [
-  "ssd_mobilenetv1_model-weights_manifest.json",
-  "ssd_mobilenetv1_model.bin",
-  "face_landmark_68_model-weights_manifest.json",
-  "face_landmark_68_model.bin",
-  "face_recognition_model-weights_manifest.json",
-  "face_recognition_model.bin",
+  [
+    join(root, "models", "face_detection_yunet_2023mar.onnx"),
+    "models/face_detection_yunet_2023mar.onnx",
+    "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+  ],
+  [
+    join(root, "models", "face_recognition_sface_2021dec_int8bq.onnx"),
+    "models/face_recognition_sface_2021dec_int8bq.onnx",
+    "fb143eea07838aa532d1c95df5f69899974ea0140e1fba05e94204be13ed74ee",
+  ],
+  [opencv, "vendor/opencv.js", "bd0c3e6448043de04f6a64a12cb7b759f78c3ab8f7c35c9f2e0f71c88bb17103"],
 ];
 
-const missing = FILES.filter((file) => !existsSync(join(from, file)));
-if (missing.length > 0) {
+const problems = [];
+for (const [from, , sha] of FILES) {
+  if (!existsSync(from)) problems.push(`missing: ${from}`);
+  else if (createHash("sha256").update(readFileSync(from)).digest("hex") !== sha) {
+    problems.push(`changed: ${from} (SHA-256 differs from the calibrated file)`);
+  }
+}
+if (problems.length > 0) {
   console.error(
-    `copy-models: missing in ${from}:\n  ${missing.join("\n  ")}\nRun "npm ci" and check that @vladmandic/face-api is installed.`,
+    `copy-models:\n  ${problems.join("\n  ")}\nRun "npm ci"; model files live in models/.`,
   );
   process.exit(1);
 }
 
-mkdirSync(to, { recursive: true });
-for (const file of FILES) copyFileSync(join(from, file), join(to, file));
-console.log(`copy-models: copied ${FILES.length} files to public/models`);
+for (const [from, to] of FILES) {
+  const dest = join(root, "public", to);
+  mkdirSync(dirname(dest), { recursive: true });
+  copyFileSync(from, dest);
+}
+console.log(`copy-models: verified and copied ${FILES.length} files to public/`);
