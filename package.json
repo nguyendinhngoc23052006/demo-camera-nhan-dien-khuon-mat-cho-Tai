@@ -1,0 +1,24 @@
+{
+  "name": "demo-camera-nhan-dien-khuon-mat-cho-tai",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/copy-models.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-models.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vladmandic/face-api": "1.7.15"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}

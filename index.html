@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f5f4f0" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)" />
+    <meta name="description" content="Add a friend's photo, then point the camera at them. Runs entirely in your browser." />
+    <title>Face demo</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231c1b19'/%3E%3Cpath d='M9 12V9h3M20 9h3v3M23 20v3h-3M12 23H9v-3' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='3.2' fill='%2339b36b'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="masthead">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg aria-hidden="true" viewBox="0 0 32 32" width="32" height="32">
+              <rect width="32" height="32" rx="9" fill="currentColor" />
+              <path
+                d="M9 12V9h3M20 9h3v3M23 20v3h-3M12 23H9v-3"
+                fill="none"
+                stroke="var(--surface)"
+                stroke-width="2"
+                stroke-linecap="round"
+              />
+              <circle cx="16" cy="16" r="3.2" fill="var(--green)" />
+            </svg>
+          </span>
+          <div>
+            <h1>Face demo</h1>
+            <p class="tagline">Add a friend's photo, then point the camera at them.</p>
+          </div>
+        </div>
+        <p class="model-status" id="model-status" data-state="loading" role="status">
+          <span class="model-status-dot" aria-hidden="true"></span>
+          <span id="model-status-text">Loading models…</span>
+        </p>
+      </header>
+
+      <div class="banner" data-tone="error" id="model-error" hidden>
+        <p><strong>The face models didn't load.</strong> Check your connection, then try again.</p>
+        <button type="button" class="btn btn-secondary" id="model-retry">
+          Try again
+        </button>
+      </div>
+      <div class="banner" data-tone="warn" id="storage-warning" hidden>
+        <p id="storage-warning-text"></p>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button type="button" class="tab" role="tab" id="tab-camera" aria-controls="view-camera">
+          Camera
+        </button>
+        <button type="button" class="tab" role="tab" id="tab-enroll" aria-controls="view-enroll">
+          Add a face
+        </button>
+      </div>
+
+      <main>
+        <section class="view" id="view-camera" role="tabpanel" aria-labelledby="tab-camera" hidden>
+          <h2 class="visually-hidden">Camera</h2>
+          <div class="camera" id="camera">
+          <div class="stage" id="stage" data-state="loading">
+            <video id="camera-video" playsinline muted autoplay></video>
+            <canvas id="camera-overlay"></canvas>
+            <div class="stage-panel">
+              <span class="stage-icon" aria-hidden="true">
+                <svg
+                  class="stage-glyph"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  width="26"
+                  height="26"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.8l1.4-2h6.6l1.4 2h1.8A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+                  <circle cx="12" cy="12.5" r="3.5" />
+                </svg>
+                <span class="spinner"></span>
+              </span>
+              <p class="stage-title" id="stage-title"></p>
+              <p class="stage-text" id="stage-text"></p>
+              <button type="button" class="stage-link" id="camera-add" hidden>Add a face</button>
+            </div>
+          </div>
+          <ul class="visually-hidden" id="camera-faces" aria-live="polite" aria-label="Faces in view"></ul>
+
+          <div class="camera-bar">
+            <button type="button" class="btn btn-primary" id="camera-toggle" disabled>
+              Start camera
+            </button>
+            <ul class="legend" aria-label="Label colours">
+              <li><span class="legend-dot" data-kind="match"></span>Recognised</li>
+              <li><span class="legend-dot" data-kind="unsure"></span>Not sure</li>
+              <li><span class="legend-dot" data-kind="unknown"></span>Unknown</li>
+            </ul>
+          </div>
+          </div>
+        </section>
+
+        <section class="view" id="view-enroll" role="tabpanel" aria-labelledby="tab-enroll" hidden>
+          <div class="enroll-grid">
+            <form class="card enroll-form" id="enroll-form" novalidate>
+              <div class="card-head">
+                <h2>Add a face</h2>
+                <p class="privacy">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="5" y="11" width="14" height="9" rx="2" />
+                    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                  </svg>
+                  Photos stay in this browser tab and are erased when you close it.
+                </p>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="enroll-name">Name</label>
+                <input
+                  class="input"
+                  id="enroll-name"
+                  name="name"
+                  type="text"
+                  autocomplete="off"
+                  autocapitalize="words"
+                  spellcheck="false"
+                  enterkeyhint="done"
+                  placeholder="e.g. Tài"
+                  aria-describedby="name-error"
+                />
+                <p class="field-error" id="name-error" hidden></p>
+              </div>
+
+              <div class="field">
+                <span class="field-label" id="photo-label">Photo</span>
+                <input
+                  class="visually-hidden"
+                  id="enroll-photo"
+                  type="file"
+                  accept="image/*"
+                  aria-labelledby="photo-label"
+                  aria-describedby="photo-status"
+                />
+                <label class="picker" id="picker" for="enroll-photo" data-state="empty">
+                  <span class="picker-empty">
+                    <span class="picker-icon" aria-hidden="true">
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        width="24"
+                        height="24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.6"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <rect x="3" y="4" width="18" height="16" rx="3" />
+                        <circle cx="9" cy="10" r="2" />
+                        <path d="m21 16-5-5-9 9" />
+                      </svg>
+                    </span>
+                    <span class="picker-title">Choose a photo</span>
+                    <span class="picker-hint">One person, face clear and well lit</span>
+                  </span>
+                  <canvas class="picker-preview" id="enroll-preview"></canvas>
+                  <span class="picker-busy" aria-hidden="true"><span class="spinner"></span></span>
+                  <span class="picker-change">Change photo</span>
+                </label>
+                <p class="photo-status" id="photo-status" data-tone="muted" aria-live="polite">
+                  JPG or PNG. On a phone you can take one now.
+                </p>
+              </div>
+
+              <p class="alert" id="enroll-message" role="alert" hidden></p>
+
+              <button type="submit" class="btn btn-primary btn-block" id="enroll-submit">
+                Add face
+              </button>
+            </form>
+
+            <section class="card people" aria-labelledby="people-title">
+              <div class="people-head">
+                <h2 id="people-title">People</h2>
+                <span class="count" id="people-count" hidden></span>
+              </div>
+              <div class="empty" id="people-empty">
+                <span class="empty-icon" aria-hidden="true">
+                  <svg aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="24"
+                    height="24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 21a8 8 0 0 1 16 0" />
+                  </svg>
+                </span>
+                <p class="empty-title">No one added yet — add a face first.</p>
+                <p class="empty-text">Everyone you add shows up here, and the camera learns them.</p>
+              </div>
+              <ul class="people-list" id="people-list"></ul>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer class="foot">
+        <p>Runs entirely in this browser. Photos are never uploaded.</p>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
