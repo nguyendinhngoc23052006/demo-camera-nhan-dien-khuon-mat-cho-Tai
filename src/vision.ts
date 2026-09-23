@@ -83,7 +83,7 @@ export function loadModels(): Promise<void> {
 }
 
 async function load(): Promise<void> {
-  cv ??= await loadOpenCV();
+  if (!cv) await loadOpenCV();
   const [yunet, sface] = await Promise.all([fetchBytes(YUNET_URL), fetchBytes(SFACE_URL)]);
   writeFile("yunet.onnx", yunet);
   writeFile("sface.onnx", sface);
@@ -112,7 +112,9 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-async function loadOpenCV(): Promise<OpenCV> {
+// Assigns `cv` rather than returning it: an async function returning the Emscripten module would
+// unwrap its self-resolving `then` forever and freeze the page.
+async function loadOpenCV(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const script = document.createElement("script");
     script.src = OPENCV_URL;
@@ -121,13 +123,13 @@ async function loadOpenCV(): Promise<OpenCV> {
     document.head.append(script);
   });
   const loaded = (window as unknown as { cv: OpenCV | Promise<OpenCV> }).cv;
-  const module = await loaded;
+  const module = loaded instanceof Promise ? await loaded : loaded;
   if (!(module as Partial<OpenCV>).Mat) {
     await new Promise<void>((resolve) => {
       module.onRuntimeInitialized = resolve;
     });
   }
-  return module;
+  cv = module;
 }
 
 export async function detectFaces(input: HTMLCanvasElement): Promise<DetectedFace[]> {
