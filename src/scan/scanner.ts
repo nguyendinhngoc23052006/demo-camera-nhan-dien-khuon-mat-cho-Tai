@@ -118,10 +118,13 @@ export function finishScan(): void {
   void active?.end();
 }
 
+/** The AR session started, but the phone can neither measure depth nor detect surfaces. */
+export class CannotMapError extends Error {}
+
 /**
  * Starts the AR session and resolves with the scan when the session ends (Done, or the phone's
- * back button). Rejects with NotSupportedError if the phone can neither measure depth nor
- * detect surfaces.
+ * back button). Rejects with CannotMapError if the phone can neither measure depth nor detect
+ * surfaces, or with the browser's own error if AR can't start at all.
  */
 export async function startScan(
   overlay: HTMLElement,
@@ -186,7 +189,7 @@ export async function startScan(
   if (mode === "surfaces" && rays.length === 0) {
     active = null;
     await session.end().catch(() => {});
-    throw new DOMException("No depth sensing or hit-test", "NotSupportedError");
+    throw new CannotMapError("No depth sensing or hit-test");
   }
 
   let snapshots = 0;
