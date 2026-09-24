@@ -74,6 +74,7 @@ function select(view: View, focus = false): void {
     panels[key].hidden = !on;
   }
   if (view !== "camera") camera.hide();
+  if (view !== "enroll") enroll.hide();
   if (focus) tabs[view].focus();
 }
 

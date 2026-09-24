@@ -177,3 +177,24 @@ export function checkPhoto(
   }
   return { ok: true };
 }
+
+/**
+ * Camera shots of one person must differ from each other by at least this much, so the saved
+ * photos cover more than one angle. Measured with SFace: still frames of one pose differ by under
+ * 0.05; separate photos of the same person by 0.16 or more.
+ */
+export const MIN_SHOT_CHANGE = 0.08;
+
+/** "same-angle": too like an earlier shot to add anything; "someone-else": not the same person. */
+export type ShotCheck = "ok" | "same-angle" | "someone-else";
+
+/** Whether a new camera shot adds a new angle of the person in the earlier shots. */
+export function checkShot(
+  descriptor: ArrayLike<number>,
+  shots: readonly ArrayLike<number>[],
+): ShotCheck {
+  const distances = shots.map((shot) => distance(descriptor, shot));
+  if (distances.some((d) => !(d <= MATCH_THRESHOLD))) return "someone-else";
+  if (distances.some((d) => d < MIN_SHOT_CHANGE)) return "same-angle";
+  return "ok";
+}
