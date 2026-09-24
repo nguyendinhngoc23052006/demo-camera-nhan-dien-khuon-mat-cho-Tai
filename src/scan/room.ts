@@ -12,6 +12,7 @@ type State =
   | "scanning"
   | "empty"
   | "denied"
+  | "no-ar"
   | "no-depth"
   | "failed"
   | "done";
@@ -48,6 +49,13 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
   denied: {
     title: "Camera access is blocked",
     text: "Allow the camera for this site in Chrome's settings, then try again.",
+    tone: "error",
+  },
+  // Chrome can report AR as available and still refuse to start it, typically when Google Play
+  // Services for AR is missing, disabled or out of date.
+  "no-ar": {
+    title: "AR couldn't start on this phone",
+    text: "Chrome needs the app Google Play Services for AR. Install or update it from the Play Store (or the phone's own app store), then try again.",
     tone: "error",
   },
   "no-depth": {
@@ -105,7 +113,7 @@ export function createRoomView() {
       text.textContent = detail ?? copy.text;
     }
     const idle = next === "ready" || next === "empty" || next === "failed" || next === "done";
-    scanButton.disabled = !(idle || next === "denied" || next === "no-depth");
+    scanButton.disabled = !(idle || next === "denied" || next === "no-ar" || next === "no-depth");
     scanButton.textContent = scan ? "Scan again" : "Rebuild the room in 3D";
     scanButton.hidden = next === "unsupported" || next === "checking";
     modes.hidden = !(next === "done" && scan);
@@ -174,11 +182,14 @@ export function createRoomView() {
     } catch (error) {
       overlay.hidden = true;
       const name = error instanceof DOMException ? error.name : "";
+      const said =
+        error instanceof Error && error.message ? ` Chrome said: "${error.message}"` : "";
       if (name === "NotAllowedError" || name === "SecurityError") setState("denied");
-      else if (name === "NotSupportedError") setState("no-depth");
+      else if (error instanceof scanner.CannotMapError) setState("no-depth");
+      else if (name === "NotSupportedError") setState("no-ar", COPY["no-ar"].text + said);
       else {
         console.error(error);
-        setState("failed");
+        setState("failed", COPY.failed.text + said);
       }
       return;
     }
