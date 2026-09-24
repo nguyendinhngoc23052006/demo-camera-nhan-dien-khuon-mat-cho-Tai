@@ -51,8 +51,8 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
     tone: "error",
   },
   "no-depth": {
-    title: "This phone can't measure depth",
-    text: "It supports AR but not depth sensing, which the room scan needs.",
+    title: "This phone can't map the room",
+    text: "It supports AR, but neither depth sensing nor surface detection.",
     tone: "error",
   },
   failed: {
@@ -61,6 +61,13 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
     tone: "error",
   },
 };
+
+const DEPTH_HINT =
+  "Walk slowly and point the phone at the walls, the floor and the furniture. Tap Done, or press Back, when you have covered the room.";
+const SURFACES_HINT =
+  "Sweep the floor and walls slowly. Every so often hold still for a second: a snapshot fills in chairs and anything else that isn't flat. Tap Done, or press Back, when finished.";
+const SURFACES_ONLY_HINT =
+  "This phone can't give the camera image to the page, so only flat surfaces are mapped: floor, walls, tables. Sweep them slowly; tap Done, or press Back, when finished.";
 
 function byId<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -79,6 +86,7 @@ export function createRoomView() {
   const plan = byId<HTMLCanvasElement>("room-plan");
   const overlay = byId<HTMLDivElement>("scan-overlay");
   const status = byId<HTMLParagraphElement>("scan-status");
+  const hint = byId<HTMLParagraphElement>("scan-hint");
   const done = byId<HTMLButtonElement>("scan-done");
 
   let state: State = "checking";
@@ -119,6 +127,12 @@ export function createRoomView() {
 
   function showProgress(p: ScanProgress): void {
     const blocks = p.voxels.toLocaleString();
+    hint.textContent =
+      p.mode === "depth"
+        ? DEPTH_HINT
+        : p.snapshotState === "unavailable"
+          ? SURFACES_ONLY_HINT
+          : SURFACES_HINT;
     if (p.full) {
       status.dataset.tone = "warn";
       status.textContent = `Scan is full (${blocks} blocks) — tap Done`;
@@ -128,9 +142,22 @@ export function createRoomView() {
     } else if (p.tooFast) {
       status.dataset.tone = "warn";
       status.textContent = "Turning too fast — slow down";
+    } else if (p.snapshotState === "measuring") {
+      delete status.dataset.tone;
+      status.textContent = "Hold still — measuring…";
+    } else if (p.snapshotState === "unaligned") {
+      status.dataset.tone = "warn";
+      status.textContent = "Hold still with the floor and a wall or furniture in view";
+    } else if (p.snapshotState === "loading") {
+      delete status.dataset.tone;
+      status.textContent = `Scanning — ${blocks} blocks (loading the depth model…)`;
     } else {
       delete status.dataset.tone;
-      status.textContent = `Scanning — ${blocks} blocks`;
+      const shots = p.snapshots === 1 ? "1 snapshot" : `${p.snapshots} snapshots`;
+      status.textContent =
+        p.mode === "surfaces" && p.snapshots > 0
+          ? `Scanning — ${blocks} blocks · ${shots}`
+          : `Scanning — ${blocks} blocks`;
     }
   }
 
@@ -206,5 +233,8 @@ function describe(scan: RoomScan): string {
     maxZ = Math.max(maxZ, k);
   }
   const metres = (span: number) => ((span + 1) * VOXEL_SIZE).toFixed(1);
-  return `${scan.voxels.length.toLocaleString()} blocks · about ${metres(maxX - minX)} × ${metres(maxZ - minZ)} m`;
+  const size = `${scan.voxels.length.toLocaleString()} blocks · about ${metres(maxX - minX)} × ${metres(maxZ - minZ)} m`;
+  if (scan.mode === "depth") return size;
+  if (scan.snapshots === 0) return `${size} · flat surfaces only`;
+  return `${size} · ${scan.snapshots === 1 ? "1 snapshot" : `${scan.snapshots} snapshots`}`;
 }

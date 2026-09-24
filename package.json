@@ -20,6 +20,7 @@
     "vitest": "^5.0.1"
   },
   "dependencies": {
+    "@litertjs/core": "2.5.3",
     "@techstark/opencv-js": "4.12.0-release.1",
     "three": "0.186.0"
   }
