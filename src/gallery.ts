@@ -2,9 +2,10 @@ import { type Enrollment, nameKey } from "./core/faces";
 
 export type Entry = Enrollment & { photo: string };
 
-const KEY = "face-demo:gallery:v1";
+// v2: SFace face prints; v1 (face-api) prints are not comparable and are never read.
+const KEY = "face-demo:gallery:v2";
 const PROBE_KEY = "face-demo:probe";
-// face-api's recognition net always yields 128 values; anything else can't be compared.
+// SFace always yields 128 values; anything else can't be compared.
 const DESCRIPTOR_LENGTH = 128;
 
 const opened = openStorage();
