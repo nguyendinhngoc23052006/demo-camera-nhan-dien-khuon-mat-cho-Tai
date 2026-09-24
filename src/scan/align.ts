@@ -3,7 +3,15 @@
 //   1 / depth ≈ scale · prediction + shift
 // against a few points whose true distance is known: hit tests on flat surfaces, or, on a phone
 // without AR, where rays must meet the floor.
-import { invert, MAX_RANGE, type Mat4, transformPoint, unproject, type Vec3 } from "./map";
+import {
+  invert,
+  MAX_RANGE,
+  type Mat4,
+  OBSTACLE_MIN_HEIGHT,
+  transformPoint,
+  unproject,
+  type Vec3,
+} from "./map";
 
 /** Fewest measured points that make a fit trustworthy. */
 export const MIN_FIT_POINTS = 6;
@@ -24,9 +32,6 @@ export interface Fit {
   near: number;
   far: number;
 }
-/** Model depths turned into points per snapshot (columns × rows). */
-export const SNAPSHOT_COLS = 48;
-export const SNAPSHOT_ROWS = 36;
 
 /** Where a world point lands in a view: normalized coords (origin top-left, v down) and depth. */
 export function projectToView(
@@ -130,7 +135,7 @@ export const FLOOR_ROWS = 12;
 /**
  * Where a grid of the view's rays would meet a floor at y = 0 (the camera is at the pose's height),
  * for a phone with no way to measure distance. Rays may hit furniture or walls first, so these are
- * farthest-possible points: pass them to snapshotPoints with `bounds`.
+ * farthest-possible points: pass them to snapshotPoints with `floor`.
  */
 export function floorHits(viewToWorld: Mat4, projection: Mat4): Vec3[] {
   const invProjection = invert(projection);
@@ -166,14 +171,16 @@ export interface Snapshot {
 
 /**
  * Room points from a snapshot: fits the model's relative depth to the measured `hits` (world
- * points on surfaces the phone detected, or with `bounds` farthest-possible points from floorHits)
+ * points on surfaces the phone detected, or with `floor` the farthest-possible points from floorHits)
  * that fall inside the picture, then turns a grid of the model's depths into world points. Null
  * when the hits can't pin the fit down.
+ * With `floor`, the floor is the plane y = 0: nothing can be beyond it, and anything the model puts
+ * lower than an obstacle is floor, so those points are moved onto it along their ray.
  */
 export function snapshotPoints(
   snapshot: Snapshot,
   hits: readonly Vec3[],
-  bounds = false,
+  floor = false,
 ): { points: Vec3[]; fit: Fit } | null {
   const { disp, size, viewToWorld, projection } = snapshot;
   const worldToView = invert(viewToWorld);
@@ -189,14 +196,17 @@ export function snapshotPoints(
     const seen = projectToView(hit, worldToView, projection);
     if (seen) samples.push({ pred: at(seen.u, seen.v), depth: seen.depth });
   }
-  const fit = fitInverseDepth(samples, bounds);
+  const fit = fitInverseDepth(samples, floor);
   if (!fit) return null;
+  const eye = transformPoint(viewToWorld, 0, 0, 0);
 
+  // Every model pixel becomes a point: dense enough that a real surface gets several points per
+  // voxel and shows up solid, while a stray point stays below MIN_HITS.
   const points: Vec3[] = [];
-  for (let r = 0; r < SNAPSHOT_ROWS; r++) {
-    for (let c = 0; c < SNAPSHOT_COLS; c++) {
-      const u = (c + 0.5) / SNAPSHOT_COLS;
-      const v = (r + 0.5) / SNAPSHOT_ROWS;
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      const u = (c + 0.5) / size;
+      const v = (r + 0.5) / size;
       const depth = metricDepth(at(u, v), fit);
       if (
         depth === null ||
@@ -206,7 +216,13 @@ export function snapshotPoints(
         continue;
       }
       const point = unproject(u, v, depth, invProjection, viewToWorld);
-      if (point) points.push(point);
+      if (!point) continue;
+      if (floor && point[1] < OBSTACLE_MIN_HEIGHT && eye[1] > OBSTACLE_MIN_HEIGHT) {
+        const t = eye[1] / (eye[1] - point[1]);
+        points.push([eye[0] + (point[0] - eye[0]) * t, 0, eye[2] + (point[2] - eye[2]) * t]);
+      } else {
+        points.push(point);
+      }
     }
   }
   return { points, fit };
