@@ -228,10 +228,14 @@ export function estimateFloorY(voxels: Iterable<Vec3>): number | null {
   return floor * VOXEL_SIZE;
 }
 
+/** "depth": the whole room shape; "surfaces": only flat surfaces the phone detected. */
+export type ScanMode = "depth" | "surfaces";
+
 /** A finished scan: the confirmed voxels and the positions the phone walked through. */
 export interface RoomScan {
   voxels: Vec3[];
   path: Vec3[];
+  mode: ScanMode;
 }
 
 /** Angle in degrees between the forward (-z) axes of two poses (view → world matrices). */

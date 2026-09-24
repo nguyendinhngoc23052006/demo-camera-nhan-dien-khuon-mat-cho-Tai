@@ -51,8 +51,8 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
     tone: "error",
   },
   "no-depth": {
-    title: "This phone can't measure depth",
-    text: "It supports AR but not depth sensing, which the room scan needs.",
+    title: "This phone can't map the room",
+    text: "It supports AR, but neither depth sensing nor surface detection.",
     tone: "error",
   },
   failed: {
@@ -61,6 +61,11 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
     tone: "error",
   },
 };
+
+const DEPTH_HINT =
+  "Walk slowly and point the phone at the walls, the floor and the furniture. Tap Done, or press Back, when you have covered the room.";
+const SURFACES_HINT =
+  "This phone can't measure depth, so only flat surfaces are mapped: floor, walls, tables. Sweep them slowly; tap Done, or press Back, when finished.";
 
 function byId<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -79,6 +84,7 @@ export function createRoomView() {
   const plan = byId<HTMLCanvasElement>("room-plan");
   const overlay = byId<HTMLDivElement>("scan-overlay");
   const status = byId<HTMLParagraphElement>("scan-status");
+  const hint = byId<HTMLParagraphElement>("scan-hint");
   const done = byId<HTMLButtonElement>("scan-done");
 
   let state: State = "checking";
@@ -119,6 +125,7 @@ export function createRoomView() {
 
   function showProgress(p: ScanProgress): void {
     const blocks = p.voxels.toLocaleString();
+    hint.textContent = p.mode === "surfaces" ? SURFACES_HINT : DEPTH_HINT;
     if (p.full) {
       status.dataset.tone = "warn";
       status.textContent = `Scan is full (${blocks} blocks) — tap Done`;
@@ -206,5 +213,6 @@ function describe(scan: RoomScan): string {
     maxZ = Math.max(maxZ, k);
   }
   const metres = (span: number) => ((span + 1) * VOXEL_SIZE).toFixed(1);
-  return `${scan.voxels.length.toLocaleString()} blocks · about ${metres(maxX - minX)} × ${metres(maxZ - minZ)} m`;
+  const size = `${scan.voxels.length.toLocaleString()} blocks · about ${metres(maxX - minX)} × ${metres(maxZ - minZ)} m`;
+  return scan.mode === "surfaces" ? `${size} · flat surfaces only` : size;
 }
