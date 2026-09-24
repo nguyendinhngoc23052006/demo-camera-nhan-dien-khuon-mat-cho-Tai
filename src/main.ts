@@ -1,10 +1,9 @@
 import { createCameraView, type ModelState } from "./camera";
 import { createEnrollView } from "./enroll";
 import { getGallery, storageWarning } from "./gallery";
-import { createRoomView } from "./scan/room";
 import { loadModels } from "./vision";
 
-type View = "camera" | "enroll" | "room";
+type View = "camera" | "enroll";
 
 function byId<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -19,16 +18,14 @@ const retry = byId<HTMLButtonElement>("model-retry");
 const storageBanner = byId<HTMLDivElement>("storage-warning");
 const storageText = byId<HTMLParagraphElement>("storage-warning-text");
 
-const VIEWS: readonly View[] = ["camera", "enroll", "room"];
+const VIEWS: readonly View[] = ["camera", "enroll"];
 const tabs: Record<View, HTMLButtonElement> = {
   camera: byId("tab-camera"),
   enroll: byId("tab-enroll"),
-  room: byId("tab-room"),
 };
 const panels: Record<View, HTMLElement> = {
   camera: byId("view-camera"),
   enroll: byId("view-enroll"),
-  room: byId("view-room"),
 };
 
 const STATUS_TEXT: Record<ModelState, string> = {
@@ -42,7 +39,6 @@ let tracked: Promise<void> | null = null;
 
 const camera = createCameraView({ onAddFace: () => select("enroll", true) });
 const enroll = createEnrollView({ ensureModels });
-const room = createRoomView();
 
 function setModelState(next: ModelState): void {
   modelState = next;
@@ -78,7 +74,6 @@ function select(view: View, focus = false): void {
     panels[key].hidden = !on;
   }
   if (view !== "camera") camera.hide();
-  if (view === "room") room.show();
   if (focus) tabs[view].focus();
 }
 

@@ -68,46 +68,6 @@ deploys there too (a Worker with only static assets) — ask Claude if you want 
 - The first load downloads about 14 MB (OpenCV plus two face models, 22 MB unpacked); wait for the loading status to finish.
 - Best results: good light, face the camera, 2–3 photos per person from slightly different angles.
 
-## 3D room
-
-The **3D room** tab rebuilds the room you are in as a 3D model and a top-down map. How it scans
-depends on the phone; the tab picks the best way by itself.
-
-- **Walk around** — Chrome on an Android phone with ARCore (Google Play Services for AR). The
-  phone tracks where it is, so you can cover the whole room.
-  - **Phones with depth sensing** measure the whole room directly.
-  - **Phones without it** map flat surfaces — floor, walls, tables — and, each time you hold still
-    for a second, take a camera snapshot: a depth model (Depth Anything V2 Small, run on the phone)
-    estimates everything in the picture, scaled to real metres by the surfaces measured around it.
-    A snapshot is skipped if everything measured in view is at one distance (a bare wall).
-- **From one spot** — any other phone with a camera and motion sensors, including phones whose
-  Chrome can't run AR (e.g. a Realme GT Neo 7 that can't install Google Play Services for AR).
-  The motion sensors know which way the phone points but not where it is, so you stand still and
-  turn: at each pause the depth model estimates the picture, scaled by where the floor must be
-  for a phone held at chest height. Sizes are approximate — expect 10–20% error, more if the phone
-  is held much higher or lower — and anything hidden from that spot stays blank. Untested on
-  iPhone.
-
-The depth model is a one-time ~49 MB download, only when a scan needs it. Computers show "Room
-scans need a phone".
-
-1. **3D room** → **Rebuild the room in 3D** (or **Scan from one spot**) → allow the camera.
-2. Walk around: move slowly, pointing at the walls, the floor and the furniture; green dots show
-   what has been captured. From one spot: phone at chest height, tilted a little down so the floor
-   shows, turn slowly and pause a second at each new direction. "Turning too fast" means depth is
-   being skipped.
-3. **Done** (or the phone's Back button while walking around). The room appears in **3D** (drag to
-   turn, pinch to zoom) and as a **Map**: light = floor seen, white = something between knee and
-   head height, green = where you walked or stood.
-
-It is a snapshot for finding your way around on screen, not a replacement for looking: people and
-chairs move after the scan, and glass, thin poles and stair edges often don't show up. Only the
-room's shape is kept, in memory, and it is gone when you leave the page.
-*Verified: 2026-09-24 against the WebXR Depth Sensing and Raw Camera Access specs
-(immersive-web/depth-sensing, immersive-web/raw-camera-access), MDN browser-compat-data 8.1.2
-(depth sensing: Chrome Android 90+; not Safari or Firefox), and the DeviceOrientation Event spec
-source (w3c/deviceorientation: Z-X'-Y'' angles; events may pause while the phone is still).*
-
 ## Tuning
 
 All in `src/core/faces.ts`. "Safe" = trades convenience for fewer wrong names.
@@ -141,11 +101,7 @@ are not on npm; sources and licences in `models/README.md`) and of opencv.js fro
 then copies them into `public/` (gitignored). A changed file fails the build. `.github/workflows/ci.yml` runs lint → typecheck → test → build
 on every pull request and push to `main`. Code map: `src/core/faces.ts` rules · `src/vision.ts`
 OpenCV · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camera.ts` Camera ·
-`src/main.ts` tabs and status · `src/scan/map.ts` room-scan geometry · `src/scan/scanner.ts`
-WebXR · `src/scan/spot.ts` one-spot scan · `src/scan/orientation.ts` phone angles to a camera pose ·
-`src/scan/depth.ts` depth model · `src/scan/align.ts` scaling it to metres ·
-`src/scan/viewer.ts` 3D view and map · `src/scan/room.ts` the 3D room tab. `public/_headers` turns
-on cross-origin isolation so the depth model can use several threads.
+`src/main.ts` tabs and status.
 
 ## Undo
 
@@ -164,10 +120,6 @@ on cross-origin isolation so the depth model can use several threads.
   face print takes roughly 60–110 KB, so about **50–90 photos** fit. Past that: "Storage is full —
   remove someone first."
 - It is a demo, not a lock: never use it to grant access to anything.
-
-- **Room scan on an unsupported device** — the tab says why, quoting the browser's own error ("AR
-  couldn't start", "needs a phone") and offers the one-spot scan when AR won't start. A scan stops
-  adding blocks at a fixed cap and asks you to tap Done.
 
 ## Privacy
 

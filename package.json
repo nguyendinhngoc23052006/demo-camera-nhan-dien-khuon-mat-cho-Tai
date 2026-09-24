@@ -14,14 +14,11 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
-    "@types/three": "0.186.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
   },
   "dependencies": {
-    "@litertjs/core": "2.5.3",
-    "@techstark/opencv-js": "4.12.0-release.1",
-    "three": "0.186.0"
+    "@techstark/opencv-js": "4.12.0-release.1"
   }
 }
