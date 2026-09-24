@@ -180,11 +180,15 @@
                     <span class="picker-hint">One person, face clear and well lit</span>
                   </span>
                   <canvas class="picker-preview" id="enroll-preview"></canvas>
+                  <video class="picker-video" id="enroll-video" muted playsinline></video>
                   <span class="picker-busy" aria-hidden="true"><span class="spinner"></span></span>
                   <span class="picker-change">Change photo</span>
                 </label>
+                <button type="button" class="btn btn-secondary btn-block" id="enroll-camera">
+                  Use the camera
+                </button>
                 <p class="photo-status" id="photo-status" data-tone="muted" aria-live="polite">
-                  JPG or PNG. On a phone you can take one now.
+                  JPG or PNG, or use the camera.
                 </p>
               </div>
 

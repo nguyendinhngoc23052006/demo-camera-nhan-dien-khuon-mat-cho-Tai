@@ -791,6 +791,32 @@ h2 {
   backdrop-filter: blur(6px);
 }
 
+.picker-video {
+  display: none;
+}
+
+/* Taking photos with the camera: the live picture fills the box, mirrored like a mirror. */
+.picker[data-state="camera"] {
+  border-style: solid;
+  border-color: var(--line);
+  background: #000;
+  cursor: default;
+}
+
+.picker[data-state="camera"] .picker-empty {
+  display: none;
+}
+
+.picker[data-state="camera"] .picker-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
 .picker[data-busy="true"] .picker-busy {
   position: absolute;
   inset: 0;

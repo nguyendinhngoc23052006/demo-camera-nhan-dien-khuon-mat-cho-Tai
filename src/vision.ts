@@ -313,3 +313,16 @@ export async function loadPhoto(file: File): Promise<HTMLCanvasElement> {
     URL.revokeObjectURL(url);
   }
 }
+
+/** The video's current frame on a canvas no larger than MAX_PHOTO_SIDE, like a picked photo. */
+export function grabFrame(video: HTMLVideoElement): HTMLCanvasElement {
+  const scale = Math.min(1, MAX_PHOTO_SIDE / Math.max(video.videoWidth, video.videoHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("This browser can't draw images.");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}

@@ -67,6 +67,9 @@ deploys there too (a Worker with only static assets) — ask Claude if you want 
 - The camera needs HTTPS (or `localhost`). `*.pages.dev` is HTTPS. Allow the camera when asked.
 - The first load downloads about 14 MB (OpenCV plus two face models, 22 MB unpacked); wait for the loading status to finish.
 - Best results: good light, face the camera, 2–3 photos per person from slightly different angles.
+  **Add a face → Use the camera** does this for you: the person looks at the camera, it takes a
+  photo whenever their face is clear and asks them to turn their head a little before the next,
+  then **Add face** saves them all (or none, if any would be refused).
 
 ## Tuning
 
@@ -80,6 +83,7 @@ All in `src/core/faces.ts`. "Safe" = trades convenience for fewer wrong names.
 | `MIN_FACE_SCORE` | How sure the detector must be about an added photo | **Up**: sharper photos only. Below 0.6 does nothing — detection itself stops at 0.6 (`src/vision.ts`). |
 | `MIN_FACE_SIZE` | Smallest face (px) accepted when adding | **Up**: close-ups only, better face prints. |
 | `MAX_NAME_LENGTH` | Longest name | Either way; the name box follows it. |
+| `MIN_SHOT_CHANGE` | How different each camera photo of a person must be from their others | **Up**: more varied angles, but people must turn their head further. |
 
 To change one, ask Claude Code, e.g. *"Set MATCH_THRESHOLD to 0.45 in src/core/faces.ts"*, review
 the pull request, merge. The tests are written relative to these constants, so they keep passing.

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkEnrollment,
   checkPhoto,
+  checkShot,
   DUPLICATE_THRESHOLD,
   distance,
   type Enrollment,
@@ -11,6 +12,7 @@ import {
   MAX_NAME_LENGTH,
   MIN_FACE_SCORE,
   MIN_FACE_SIZE,
+  MIN_SHOT_CHANGE,
   matchFace,
   nameKey,
   normalizeName,
@@ -356,5 +358,31 @@ describe("checkPhoto", () => {
       checkPhoto([{ ...good, score: MIN_FACE_SCORE - 0.01 }]),
     ];
     for (const r of rejections) expect(!r.ok && r.message.length > 0).toBe(true);
+  });
+});
+
+describe("checkShot", () => {
+  it("takes the first shot of anyone", () => {
+    expect(checkShot(BASE, [])).toBe("ok");
+  });
+
+  it("wants each shot at a new angle", () => {
+    expect(checkShot(away(MIN_SHOT_CHANGE - TINY), [BASE])).toBe("same-angle");
+    expect(checkShot(away(MIN_SHOT_CHANGE + TINY), [BASE])).toBe("ok");
+  });
+
+  it("compares a new shot with every earlier one", () => {
+    const earlier = [BASE, away(MIN_SHOT_CHANGE * 2, 1)];
+    expect(checkShot(away(MIN_SHOT_CHANGE * 2, 1), earlier)).toBe("same-angle");
+    expect(checkShot(away(MIN_SHOT_CHANGE * 2, 2), earlier)).toBe("ok");
+  });
+
+  it("refuses a shot of someone else", () => {
+    expect(checkShot(away(MATCH_THRESHOLD + TINY), [BASE])).toBe("someone-else");
+    expect(checkShot(away(MATCH_THRESHOLD - TINY), [BASE])).toBe("ok");
+  });
+
+  it("treats an empty print as someone else", () => {
+    expect(checkShot(new Array(128).fill(0), [BASE])).toBe("someone-else");
   });
 });
