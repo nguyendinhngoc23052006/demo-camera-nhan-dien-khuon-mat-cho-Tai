@@ -411,6 +411,14 @@ h2 {
   color: var(--ink);
 }
 
+/* Three tabs at 360 px: keep each label on one line. */
+@media (max-width: 420px) {
+  .tab {
+    padding: 0 var(--space-2);
+    white-space: nowrap;
+  }
+}
+
 .tab[aria-selected="true"] {
   background: var(--raised);
   color: var(--ink);
@@ -619,6 +627,11 @@ h2 {
   display: none;
 }
 
+/* The camera rule above hides stage canvases unless the camera runs; a finished scan shows them. */
+.room-stage[data-state="done"] canvas {
+  visibility: visible;
+}
+
 .segmented {
   display: inline-grid;
   min-width: 0;
@@ -632,7 +645,7 @@ h2 {
 
 .segmented button {
   min-width: 4.5rem;
-  min-height: 40px;
+  min-height: 44px;
   border: 0;
   border-radius: 9px;
   background: transparent;

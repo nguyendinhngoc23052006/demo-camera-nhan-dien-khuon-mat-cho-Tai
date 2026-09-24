@@ -60,14 +60,18 @@ export function createViewer(model: HTMLCanvasElement, plan: HTMLCanvasElement):
     renderer.render(scene, camera);
   }
 
+  /** Redraws whichever view is showing; the hidden one measures 0×0 and is skipped. */
   function resize(): void {
+    if (mode === "map") {
+      if (current && plan.clientWidth > 0) drawPlan(plan, current);
+      return;
+    }
     const { clientWidth: w, clientHeight: h } = model;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     render();
-    if (mode === "map" && current) drawPlan(plan, current);
   }
   const observer = new ResizeObserver(resize);
   observer.observe(model);

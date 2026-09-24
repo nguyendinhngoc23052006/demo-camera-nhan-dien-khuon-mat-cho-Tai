@@ -12,8 +12,10 @@ import {
 } from "three";
 import {
   invert,
+  MAX_TURN_RATE,
   MAX_VOXELS,
   type RoomScan,
+  turnAngle,
   unproject,
   type Vec3,
   VOXEL_SIZE,
@@ -33,6 +35,8 @@ const PATH_STEP = 0.2;
 export interface ScanProgress {
   voxels: number;
   tracking: boolean;
+  /** Turning too fast for depth to line up; the UI asks to slow down. */
+  tooFast: boolean;
   full: boolean;
 }
 
@@ -86,7 +90,8 @@ export async function startScan(
   const system = xr();
   if (!system) throw new DOMException("WebXR is not available", "NotSupportedError");
   const session = await system.requestSession("immersive-ar", {
-    requiredFeatures: ["depth-sensing", "local-floor"],
+    // "local" is available in every AR session; the floor height is found from the scan itself.
+    requiredFeatures: ["depth-sensing", "local"],
     optionalFeatures: ["dom-overlay"],
     domOverlay: { root: overlay },
     depthSensing: {
@@ -99,7 +104,7 @@ export async function startScan(
   const canvas = document.createElement("canvas");
   const renderer = new WebGLRenderer({ canvas, alpha: true, antialias: false });
   renderer.xr.enabled = true;
-  renderer.xr.setReferenceSpaceType("local-floor");
+  renderer.xr.setReferenceSpaceType("local");
   const scene = new Scene();
   const camera = new PerspectiveCamera();
 
@@ -123,14 +128,39 @@ export async function startScan(
   let lastReport = "";
 
   const ended = new Promise<void>((resolve) => session.addEventListener("end", () => resolve()));
-  await renderer.xr.setSession(session as unknown as XRSession);
+  try {
+    await renderer.xr.setSession(session as unknown as XRSession);
+  } catch (error) {
+    // Don't leave the camera running behind a session nobody can see.
+    active = null;
+    renderer.dispose();
+    await session.end().catch(() => {});
+    throw error;
+  }
 
-  renderer.setAnimationLoop((_time, xrFrame) => {
+  let previous: { matrix: Float32Array; time: number } | null = null;
+  // Frames in a row turning slowly enough; depth is read only after two, since it trails the pose.
+  let calm = 0;
+
+  renderer.setAnimationLoop((time, xrFrame) => {
     const f = xrFrame as unknown as XRFrameLike | undefined;
     const space = renderer.xr.getReferenceSpace();
-    const pose = f && space ? f.getViewerPose(space) : null;
+    // Callbacks without an XR frame (before the session is fully up) say nothing about tracking.
+    if (!f || !space) return;
+    const pose = f.getViewerPose(space);
     const tracking = !!pose && !pose.emulatedPosition;
-    if (f && pose && tracking && frame++ % DEPTH_EVERY === 0) {
+    const lead = pose?.views[0];
+    let tooFast = false;
+    if (lead) {
+      if (previous && time > previous.time) {
+        const rate =
+          turnAngle(previous.matrix, lead.transform.matrix) / ((time - previous.time) / 1000);
+        tooFast = rate > MAX_TURN_RATE;
+      }
+      previous = { matrix: Float32Array.from(lead.transform.matrix), time };
+    }
+    calm = tracking && !tooFast ? calm + 1 : 0;
+    if (pose && calm >= 2 && frame++ % DEPTH_EVERY === 0) {
       for (const view of pose.views) {
         const depth = f.getDepthInformation(view);
         if (!depth) continue;
@@ -149,10 +179,10 @@ export async function startScan(
       const attribute = geometry.getAttribute("position");
       attribute.needsUpdate = true;
     }
-    const report = `${map.size}|${tracking}|${map.isFull}`;
+    const report = `${map.size}|${tracking}|${tooFast}|${map.isFull}`;
     if (report !== lastReport) {
       lastReport = report;
-      onProgress({ voxels: map.size, tracking, full: map.isFull });
+      onProgress({ voxels: map.size, tracking, tooFast, full: map.isFull });
     }
     renderer.render(scene, camera);
   });

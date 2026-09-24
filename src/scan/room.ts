@@ -125,6 +125,9 @@ export function createRoomView() {
     } else if (!p.tracking) {
       status.dataset.tone = "warn";
       status.textContent = "Lost track — move slower, or add light";
+    } else if (p.tooFast) {
+      status.dataset.tone = "warn";
+      status.textContent = "Turning too fast — slow down";
     } else {
       delete status.dataset.tone;
       status.textContent = `Scanning — ${blocks} blocks`;

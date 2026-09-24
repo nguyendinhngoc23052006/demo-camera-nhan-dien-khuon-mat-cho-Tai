@@ -8,6 +8,7 @@ import {
   MIN_HITS,
   MIN_RANGE,
   transformPoint,
+  turnAngle,
   unproject,
   type Vec3,
   VOXEL_SIZE,
@@ -342,5 +343,13 @@ describe("estimateFloorY", () => {
 
   it("returns null for an empty scan", () => {
     expect(estimateFloorY([])).toBeNull();
+  });
+});
+
+describe("turnAngle", () => {
+  it("measures turning and tilting between two poses, ignoring position", () => {
+    expect(turnAngle(pose(0, [0, 0, 0]), pose(0, [5, 1, 2]))).toBeCloseTo(0, 9);
+    expect(turnAngle(pose(0, [0, 0, 0]), pose(Math.PI / 6, [0, 0, 0]))).toBeCloseTo(30, 9);
+    expect(turnAngle(pose(0.3, [0, 0, 0]), pose(0.3, [0, 0, 0], -Math.PI / 4))).toBeCloseTo(45, 9);
   });
 });

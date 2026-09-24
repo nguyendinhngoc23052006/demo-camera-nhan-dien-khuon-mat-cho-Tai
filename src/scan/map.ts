@@ -10,6 +10,11 @@ export const MIN_RANGE = 0.3;
 export const MAX_RANGE = 4.5;
 /** Hard cap so a long scan can't exhaust a phone's memory; the UI says so when it is reached. */
 export const MAX_VOXELS = 150_000;
+/**
+ * Depth is skipped while the phone turns faster than this (degrees per second): the depth image
+ * trails the pose slightly, so fast turns would smear walls into rotated copies.
+ */
+export const MAX_TURN_RATE = 60;
 /** Heights above the floor (metres) that count as an obstacle on the top-down plan. */
 export const OBSTACLE_MIN_HEIGHT = 0.1;
 export const OBSTACLE_MAX_HEIGHT = 1.8;
@@ -227,4 +232,13 @@ export function estimateFloorY(voxels: Iterable<Vec3>): number | null {
 export interface RoomScan {
   voxels: Vec3[];
   path: Vec3[];
+}
+
+/** Angle in degrees between the forward (-z) axes of two poses (view → world matrices). */
+export function turnAngle(a: Mat4, b: Mat4): number {
+  const [ax, ay, az] = [a[8] as number, a[9] as number, a[10] as number];
+  const [bx, by, bz] = [b[8] as number, b[9] as number, b[10] as number];
+  const dot = ax * bx + ay * by + az * bz;
+  const len = Math.hypot(ax, ay, az) * Math.hypot(bx, by, bz);
+  return (Math.acos(Math.min(1, Math.max(-1, dot / len))) * 180) / Math.PI;
 }
