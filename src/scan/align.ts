@@ -2,17 +2,30 @@
 // (MiDaS and kin) predict inverse depth up to an unknown scale and shift, so for each photo we fit
 //   1 / depth ≈ scale · prediction + shift
 // against a few points whose true distance the phone measured (hit tests on flat surfaces).
-import { type Mat4, transformPoint, type Vec3 } from "./map";
+import { invert, type Mat4, transformPoint, unproject, type Vec3 } from "./map";
 
 /** Fewest measured points that make a fit trustworthy. */
 export const MIN_FIT_POINTS = 6;
 /** Measured points must span at least this depth ratio (far / near), or scale is undetermined. */
 export const MIN_DEPTH_RATIO = 1.3;
+/**
+ * A snapshot is trusted only this far outside the distances it was fitted on (as a fraction):
+ * inverse-depth fits blow small errors up with distance, so beyond it points are dropped.
+ */
+export const EXTRAPOLATION_MARGIN = 0.15;
 
 export interface Fit {
   scale: number;
   shift: number;
+  /** How many measured points agreed with the fit. */
+  inliers: number;
+  /** Nearest and farthest agreeing measured point, metres. */
+  near: number;
+  far: number;
 }
+/** Model depths turned into points per snapshot (columns × rows). */
+export const SNAPSHOT_COLS = 48;
+export const SNAPSHOT_ROWS = 36;
 
 /** Where a world point lands in a view: normalized coords (origin top-left, v down) and depth. */
 export function projectToView(
@@ -30,6 +43,9 @@ export function projectToView(
 }
 
 function leastSquares(points: readonly { pred: number; inv: number }[]): Fit | null {
+  const inliers = points.length;
+  const near = 1 / Math.max(...points.map((p) => p.inv));
+  const far = 1 / Math.min(...points.map((p) => p.inv));
   const n = points.length;
   let sx = 0;
   let sy = 0;
@@ -44,7 +60,7 @@ function leastSquares(points: readonly { pred: number; inv: number }[]): Fit | n
   const det = n * sxx - sx * sx;
   if (!(Math.abs(det) > 1e-12)) return null;
   const scale = (n * sxy - sx * sy) / det;
-  return { scale, shift: (sy - scale * sx) / n };
+  return { scale, shift: (sy - scale * sx) / n, inliers, near, far };
 }
 
 /** A measured point agrees with a fit when its inverse depth is within this fraction. */
@@ -85,4 +101,59 @@ export function fitInverseDepth(samples: readonly { pred: number; depth: number 
 export function metricDepth(pred: number, fit: Fit): number | null {
   const inv = fit.scale * pred + fit.shift;
   return inv > 1e-6 ? 1 / inv : null;
+}
+
+/** One camera image's depth estimate and where the phone was when it was taken. */
+export interface Snapshot {
+  /** Inverse depth, size × size, row-major, top row first (see depth.ts). */
+  disp: Float32Array;
+  size: number;
+  viewToWorld: Mat4;
+  projection: Mat4;
+}
+
+/**
+ * Room points from a snapshot: fits the model's relative depth to the measured `hits` (world
+ * points on surfaces the phone detected) that fall inside the picture, then turns a grid of the
+ * model's depths into world points. Null when the hits can't pin the fit down.
+ */
+export function snapshotPoints(
+  snapshot: Snapshot,
+  hits: readonly Vec3[],
+): { points: Vec3[]; fit: Fit } | null {
+  const { disp, size, viewToWorld, projection } = snapshot;
+  const worldToView = invert(viewToWorld);
+  const invProjection = invert(projection);
+  if (!worldToView || !invProjection) return null;
+  const at = (u: number, v: number) =>
+    disp[
+      Math.min(size - 1, Math.floor(v * size)) * size + Math.min(size - 1, Math.floor(u * size))
+    ] ?? Number.NaN;
+
+  const samples: { pred: number; depth: number }[] = [];
+  for (const hit of hits) {
+    const seen = projectToView(hit, worldToView, projection);
+    if (seen) samples.push({ pred: at(seen.u, seen.v), depth: seen.depth });
+  }
+  const fit = fitInverseDepth(samples);
+  if (!fit) return null;
+
+  const points: Vec3[] = [];
+  for (let r = 0; r < SNAPSHOT_ROWS; r++) {
+    for (let c = 0; c < SNAPSHOT_COLS; c++) {
+      const u = (c + 0.5) / SNAPSHOT_COLS;
+      const v = (r + 0.5) / SNAPSHOT_ROWS;
+      const depth = metricDepth(at(u, v), fit);
+      if (
+        depth === null ||
+        depth > fit.far * (1 + EXTRAPOLATION_MARGIN) ||
+        depth < fit.near * (1 - EXTRAPOLATION_MARGIN)
+      ) {
+        continue;
+      }
+      const point = unproject(u, v, depth, invProjection, viewToWorld);
+      if (point) points.push(point);
+    }
+  }
+  return { points, fit };
 }

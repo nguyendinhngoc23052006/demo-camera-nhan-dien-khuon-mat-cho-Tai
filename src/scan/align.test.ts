@@ -77,3 +77,12 @@ describe("projectToView", () => {
     expect(projectToView([10, 1.5, -1.2], worldToView, proj)).toBeNull();
   });
 });
+
+describe("fit range", () => {
+  it("reports the nearest and farthest agreeing points", () => {
+    const samples = [0.8, 1.1, 1.6, 2.2, 2.9, 3.5].map((d) => ({ pred: predict(d), depth: d }));
+    const fit = fitInverseDepth(samples);
+    expect(fit?.near).toBeCloseTo(0.8, 9);
+    expect(fit?.far).toBeCloseTo(3.5, 9);
+  });
+});

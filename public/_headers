@@ -1,0 +1,4 @@
+# Cross-origin isolation lets the depth model (LiteRT) run on several threads.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp

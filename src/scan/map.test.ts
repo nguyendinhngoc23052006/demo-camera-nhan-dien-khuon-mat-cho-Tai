@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EXTRAPOLATION_MARGIN, snapshotPoints } from "./align";
 import {
   columnKey,
   estimateFloorY,
@@ -351,5 +352,76 @@ describe("turnAngle", () => {
     expect(turnAngle(pose(0, [0, 0, 0]), pose(0, [5, 1, 2]))).toBeCloseTo(0, 9);
     expect(turnAngle(pose(0, [0, 0, 0]), pose(Math.PI / 6, [0, 0, 0]))).toBeCloseTo(30, 9);
     expect(turnAngle(pose(0.3, [0, 0, 0]), pose(0.3, [0, 0, 0], -Math.PI / 4))).toBeCloseTo(45, 9);
+  });
+});
+
+describe("VoxelMap weights", () => {
+  it("confirms a voxel at once when one weighted hit carries MIN_HITS", () => {
+    const map = new VoxelMap();
+    expect(map.add(0.01, 0.01, 0.01, MIN_HITS)).toBe("confirmed");
+    expect(map.add(0.01, 0.01, 0.01, MIN_HITS)).toBe("added");
+    expect(map.size).toBe(1);
+  });
+});
+
+describe("snapshotPoints on the simulated room", () => {
+  // A camera image's depth estimate: true inverse depth under an unknown scale and shift.
+  const SIZE = 160;
+  const SCALE = 0.42;
+  const SHIFT = -0.03;
+  const eye: Vec3 = [-0.4, 1.4, 0.2];
+  const viewToWorld = pose(-2.4, eye, -0.35); // facing the table
+  const inv = invPerspective();
+  const rayDepth = (u: number, v: number) => {
+    const near = transformPoint(inv, 2 * u - 1, 1 - 2 * v, -1);
+    const len = Math.hypot(...near);
+    const dirView: Vec3 = [near[0] / len, near[1] / len, near[2] / len];
+    const tip = transformPoint(viewToWorld, ...dirView);
+    const t = raycast(eye, [tip[0] - eye[0], tip[1] - eye[1], tip[2] - eye[2]]);
+    return t * -dirView[2];
+  };
+  const disp = new Float32Array(SIZE * SIZE);
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      disp[y * SIZE + x] = (1 / rayDepth((x + 0.5) / SIZE, (y + 0.5) / SIZE) - SHIFT) / SCALE;
+    }
+  }
+  // Hit tests: a 5×4 fan of rays, like scanner.ts.
+  const hits: Vec3[] = [];
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 5; c++) {
+      const u = 0.1 + 0.2 * c;
+      const v = 0.12 + 0.25 * r;
+      const p = unproject(u, v, rayDepth(u, v), inv, viewToWorld);
+      if (p) hits.push(p);
+    }
+  }
+  const snapshot = { disp, size: SIZE, viewToWorld, projection: perspective() };
+
+  it("recovers the depth scale from the hits", () => {
+    const result = snapshotPoints(snapshot, hits);
+    expect(result?.fit.scale).toBeCloseTo(SCALE, 2);
+  });
+
+  it("puts the snapshot's points on the real surfaces", () => {
+    const points = snapshotPoints(snapshot, hits)?.points ?? [];
+    expect(points.length).toBeGreaterThan(1000);
+    const off = points.filter((p) => surfaceDistance(p) > VOXEL_SIZE * 1.5);
+    expect(off.length / points.length).toBeLessThan(0.05);
+  });
+
+  it("drops points beyond the distances it was fitted on", () => {
+    // Only hits on the near half of the picture: far parts of the room must not be extrapolated.
+    const near = hits.filter((h) => Math.hypot(h[0] - eye[0], h[2] - eye[2]) < 2.2);
+    const result = snapshotPoints(snapshot, near);
+    const limit = (result?.fit.far ?? 0) * (1 + EXTRAPOLATION_MARGIN);
+    const view = invert(snapshot.viewToWorld) as number[];
+    const depths = (result?.points ?? []).map((p) => -transformPoint(view, ...p)[2]);
+    expect(depths.length).toBeGreaterThan(0);
+    expect(Math.max(...depths)).toBeLessThanOrEqual(limit + 1e-9);
+  });
+
+  it("gives up when too few hits land in the picture", () => {
+    expect(snapshotPoints(snapshot, hits.slice(0, 3))).toBeNull();
   });
 });

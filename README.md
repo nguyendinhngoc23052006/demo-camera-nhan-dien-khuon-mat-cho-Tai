@@ -75,6 +75,13 @@ The **3D room** tab rebuilds the room you are in as a 3D model and a top-down ma
 1. Open the site in **Chrome on an Android phone with ARCore** (Google Play Services for AR).
    iPhones and computers show "Room scans need an Android phone": Safari and desktop browsers have
    no WebXR AR, so a web page there cannot track where the phone is.
+   - **Phones with depth sensing** measure the whole room directly.
+   - **Phones without it** (many, e.g. Realme GT Neo 7) map flat surfaces — floor, walls, tables —
+     and, each time you hold still for a second, take a camera snapshot: a depth model (Depth
+     Anything V2 Small, run on the phone) estimates everything in the picture, scaled to real
+     metres by the surfaces measured around it. The model is a one-time ~49 MB download, only on
+     these phones. A snapshot is skipped if everything measured in view is at one distance (a bare
+     wall): include the floor or furniture.
 2. **3D room** → **Rebuild the room in 3D** → allow the camera.
 3. Walk slowly around the room, pointing the phone at the walls, the floor and the furniture.
    Green dots show what has been captured. "Turning too fast" means depth is being skipped.
@@ -85,8 +92,9 @@ The **3D room** tab rebuilds the room you are in as a 3D model and a top-down ma
 It is a snapshot for finding your way around on screen, not a replacement for looking: people and
 chairs move after the scan, and glass, thin poles and stair edges often don't show up. Only the
 room's shape is kept, in memory, and it is gone when you leave the page.
-*Verified: 2026-09-24 against the WebXR Depth Sensing spec (immersive-web/depth-sensing) and MDN
-browser-compat-data 8.1.2 (depth sensing: Chrome Android 90+; not Safari or Firefox).*
+*Verified: 2026-09-24 against the WebXR Depth Sensing and Raw Camera Access specs
+(immersive-web/depth-sensing, immersive-web/raw-camera-access) and MDN browser-compat-data 8.1.2
+(depth sensing: Chrome Android 90+; not Safari or Firefox).*
 
 ## Tuning
 
@@ -122,7 +130,9 @@ then copies them into `public/` (gitignored). A changed file fails the build. `.
 on every pull request and push to `main`. Code map: `src/core/faces.ts` rules · `src/vision.ts`
 OpenCV · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camera.ts` Camera ·
 `src/main.ts` tabs and status · `src/scan/map.ts` room-scan geometry · `src/scan/scanner.ts`
-WebXR · `src/scan/viewer.ts` 3D view and map · `src/scan/room.ts` the 3D room tab.
+WebXR · `src/scan/depth.ts` depth model · `src/scan/align.ts` scaling it to metres ·
+`src/scan/viewer.ts` 3D view and map · `src/scan/room.ts` the 3D room tab. `public/_headers` turns
+on cross-origin isolation so the depth model can use several threads.
 
 ## Undo
 

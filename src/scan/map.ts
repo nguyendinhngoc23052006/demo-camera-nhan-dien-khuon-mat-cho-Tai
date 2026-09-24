@@ -85,14 +85,18 @@ export class VoxelMap {
   private readonly hits = new Map<number, number>();
   private confirmedCount = 0;
 
-  /** Counts a hit. "confirmed" means the voxel just reached MIN_HITS and should now be drawn. */
-  add(x: number, y: number, z: number): AddResult {
+  /**
+   * Counts `weight` hits (default one measurement). "confirmed" means the voxel just reached
+   * MIN_HITS and should now be drawn.
+   */
+  add(x: number, y: number, z: number, weight = 1): AddResult {
     const [i, j, k] = voxelOf(x, y, z);
     const key = voxelKey(i, j, k);
-    const hits = (this.hits.get(key) ?? 0) + 1;
-    if (hits === 1 && this.hits.size >= MAX_VOXELS * 4) return "full";
+    const before = this.hits.get(key) ?? 0;
+    const hits = before + weight;
+    if (before === 0 && this.hits.size >= MAX_VOXELS * 4) return "full";
     this.hits.set(key, hits);
-    if (hits !== MIN_HITS) return "added";
+    if (!(before < MIN_HITS && hits >= MIN_HITS)) return "added";
     if (this.confirmedCount >= MAX_VOXELS) return "full";
     this.confirmedCount++;
     return "confirmed";
@@ -236,6 +240,8 @@ export interface RoomScan {
   voxels: Vec3[];
   path: Vec3[];
   mode: ScanMode;
+  /** Camera snapshots turned into depth (surfaces mode only). */
+  snapshots: number;
 }
 
 /** Angle in degrees between the forward (-z) axes of two poses (view → world matrices). */

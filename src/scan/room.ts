@@ -65,7 +65,9 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
 const DEPTH_HINT =
   "Walk slowly and point the phone at the walls, the floor and the furniture. Tap Done, or press Back, when you have covered the room.";
 const SURFACES_HINT =
-  "This phone can't measure depth, so only flat surfaces are mapped: floor, walls, tables. Sweep them slowly; tap Done, or press Back, when finished.";
+  "Sweep the floor and walls slowly. Every so often hold still for a second: a snapshot fills in chairs and anything else that isn't flat. Tap Done, or press Back, when finished.";
+const SURFACES_ONLY_HINT =
+  "This phone can't give the camera image to the page, so only flat surfaces are mapped: floor, walls, tables. Sweep them slowly; tap Done, or press Back, when finished.";
 
 function byId<T extends HTMLElement>(id: string): T {
   const el = document.getElementById(id);
@@ -125,7 +127,12 @@ export function createRoomView() {
 
   function showProgress(p: ScanProgress): void {
     const blocks = p.voxels.toLocaleString();
-    hint.textContent = p.mode === "surfaces" ? SURFACES_HINT : DEPTH_HINT;
+    hint.textContent =
+      p.mode === "depth"
+        ? DEPTH_HINT
+        : p.snapshotState === "unavailable"
+          ? SURFACES_ONLY_HINT
+          : SURFACES_HINT;
     if (p.full) {
       status.dataset.tone = "warn";
       status.textContent = `Scan is full (${blocks} blocks) — tap Done`;
@@ -135,9 +142,22 @@ export function createRoomView() {
     } else if (p.tooFast) {
       status.dataset.tone = "warn";
       status.textContent = "Turning too fast — slow down";
+    } else if (p.snapshotState === "measuring") {
+      delete status.dataset.tone;
+      status.textContent = "Hold still — measuring…";
+    } else if (p.snapshotState === "unaligned") {
+      status.dataset.tone = "warn";
+      status.textContent = "Hold still with the floor and a wall or furniture in view";
+    } else if (p.snapshotState === "loading") {
+      delete status.dataset.tone;
+      status.textContent = `Scanning — ${blocks} blocks (loading the depth model…)`;
     } else {
       delete status.dataset.tone;
-      status.textContent = `Scanning — ${blocks} blocks`;
+      const shots = p.snapshots === 1 ? "1 snapshot" : `${p.snapshots} snapshots`;
+      status.textContent =
+        p.mode === "surfaces" && p.snapshots > 0
+          ? `Scanning — ${blocks} blocks · ${shots}`
+          : `Scanning — ${blocks} blocks`;
     }
   }
 
@@ -214,5 +234,7 @@ function describe(scan: RoomScan): string {
   }
   const metres = (span: number) => ((span + 1) * VOXEL_SIZE).toFixed(1);
   const size = `${scan.voxels.length.toLocaleString()} blocks · about ${metres(maxX - minX)} × ${metres(maxZ - minZ)} m`;
-  return scan.mode === "surfaces" ? `${size} · flat surfaces only` : size;
+  if (scan.mode === "depth") return size;
+  if (scan.snapshots === 0) return `${size} · flat surfaces only`;
+  return `${size} · ${scan.snapshots === 1 ? "1 snapshot" : `${scan.snapshots} snapshots`}`;
 }
