@@ -59,6 +59,9 @@
         <button type="button" class="tab" role="tab" id="tab-enroll" aria-controls="view-enroll">
           Add a face
         </button>
+        <button type="button" class="tab" role="tab" id="tab-room" aria-controls="view-room">
+          3D room
+        </button>
       </div>
 
       <main>
@@ -223,7 +226,65 @@
             </section>
           </div>
         </section>
+
+        <section class="view" id="view-room" role="tabpanel" aria-labelledby="tab-room" hidden>
+          <h2 class="visually-hidden">3D room</h2>
+          <div class="camera">
+            <div class="stage room-stage" id="room-stage" data-state="checking">
+              <canvas id="room-model" hidden></canvas>
+              <canvas class="room-plan" id="room-plan" hidden></canvas>
+              <div class="stage-panel">
+                <span class="stage-icon" aria-hidden="true">
+                  <svg
+                    class="stage-glyph"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="26"
+                    height="26"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 3 3.5 7.5v9L12 21l8.5-4.5v-9z" />
+                    <path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" />
+                  </svg>
+                  <span class="spinner"></span>
+                </span>
+                <p class="stage-title" id="room-title"></p>
+                <p class="stage-text" id="room-text"></p>
+              </div>
+            </div>
+
+            <div class="camera-bar">
+              <button type="button" class="btn btn-primary" id="room-scan" disabled>
+                Rebuild the room in 3D
+              </button>
+              <fieldset class="segmented" id="room-modes" hidden>
+                <legend class="visually-hidden">Show as</legend>
+                <button type="button" data-mode="3d" aria-pressed="true">3D</button>
+                <button type="button" data-mode="map" aria-pressed="false">Map</button>
+              </fieldset>
+              <p class="room-stats" id="room-stats" hidden></p>
+            </div>
+            <p class="room-note">
+              A snapshot of the room to find your way around on screen. Things move after you scan
+              and glass or thin objects may be missing, so keep looking where you walk.
+            </p>
+          </div>
+        </section>
       </main>
+
+      <div class="scan-overlay" id="scan-overlay" hidden>
+        <div class="scan-top">
+          <p class="scan-status" id="scan-status" role="status">Starting…</p>
+          <p class="scan-hint" id="scan-hint">
+            Walk slowly and point the phone at the walls, the floor and the furniture.
+          </p>
+        </div>
+        <button type="button" class="btn btn-primary scan-done" id="scan-done">Done</button>
+      </div>
 
       <footer class="foot">
         <p>Runs entirely in this browser. Photos are never uploaded.</p>
