@@ -232,15 +232,18 @@ export function estimateFloorY(voxels: Iterable<Vec3>): number | null {
   return floor * VOXEL_SIZE;
 }
 
-/** "depth": the whole room shape; "surfaces": only flat surfaces the phone detected. */
-export type ScanMode = "depth" | "surfaces";
+/**
+ * "depth": the whole room shape; "surfaces": flat surfaces the phone detected, plus snapshots;
+ * "spot": snapshots from one spot, on a phone without AR (sizes rest on an assumed phone height).
+ */
+export type ScanMode = "depth" | "surfaces" | "spot";
 
 /** A finished scan: the confirmed voxels and the positions the phone walked through. */
 export interface RoomScan {
   voxels: Vec3[];
   path: Vec3[];
   mode: ScanMode;
-  /** Camera snapshots turned into depth (surfaces mode only). */
+  /** Camera snapshots turned into depth (surfaces and spot modes). */
   snapshots: number;
 }
 

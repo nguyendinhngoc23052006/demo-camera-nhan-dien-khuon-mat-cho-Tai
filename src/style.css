@@ -688,6 +688,21 @@ h2 {
   pointer-events: none;
 }
 
+/* One-spot scan: no AR, so the page itself shows the camera. */
+.scan-overlay[data-mode="spot"] {
+  z-index: 10;
+  background: #000;
+}
+
+.scan-video {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .scan-top {
   align-self: center;
   max-width: 34ch;

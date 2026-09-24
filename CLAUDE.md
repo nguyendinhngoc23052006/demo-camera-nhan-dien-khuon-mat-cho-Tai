@@ -1,7 +1,8 @@
 # CLAUDE.md — the rules this project obeys
 
 Face-recognition demo for Tài. A friend adds a face (photo + name); the webcam labels whoever it
-sees. A second mode rebuilds the room in 3D on Android phones (WebXR). Everything happens inside
+sees. A second mode rebuilds the room in 3D: walking around on Android phones with AR (WebXR), or
+turning on one spot on any phone with a camera and motion sensors. Everything happens inside
 one browser tab; Cloudflare Pages only serves the static files.
 
 ## Stack
@@ -10,6 +11,7 @@ Vite + vanilla TypeScript · Biome · Vitest · opencv.js (`@techstark/opencv-js
 Zoo models YuNet + SFace · three.js (3D room only, loaded when that tab opens) · WebXR
 immersive-ar with CPU depth sensing or hit-test + camera access · LiteRT.js (`@litertjs/core`,
 TensorFlow Lite for the web) running Depth Anything V2 Small, for phones without depth sensing ·
+DeviceOrientation + camera for the one-spot scan on phones without AR ·
 Cloudflare Pages Git build (`npm run build` → `dist`) ·
 Node from `.node-version` (Pages and CI both read it). Nothing else.
 
@@ -25,9 +27,10 @@ Node from `.node-version` (Pages and CI both read it). Nothing else.
    re-tuning a constant never touches a test.
 4. **One door each.** `src/vision.ts` is the only file touching OpenCV; `src/gallery.ts` the
    only file touching storage; `src/scan/scanner.ts` the only file touching WebXR;
-   `src/scan/depth.ts` the only file touching LiteRT. Scan geometry (depth → voxels → plan) stays
-   pure in `src/scan/map.ts`, and fitting the depth model to measured points in
-   `src/scan/align.ts`; both are tested against a simulated room.
+   `src/scan/spot.ts` the only file touching motion sensors; `src/scan/depth.ts` the only file
+   touching LiteRT. Scan geometry (depth → voxels → plan) stays pure in `src/scan/map.ts`,
+   fitting the depth model to measured points or the floor in `src/scan/align.ts`, and phone
+   orientation → camera pose in `src/scan/orientation.ts`; all are tested against a simulated room.
 5. **Names reach the screen via `textContent` or canvas `fillText` only** — never `innerHTML` with data.
 6. **Models are pinned by checksum.** opencv.js is pinned exactly in `package.json`; YuNet and
    SFace live in `models/` (not on npm) with their licences, and so does the depth model, which
