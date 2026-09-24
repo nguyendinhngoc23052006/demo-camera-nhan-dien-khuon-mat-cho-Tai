@@ -20,7 +20,6 @@ import {
   invert,
   MAX_TURN_RATE,
   MAX_VOXELS,
-  MIN_HITS,
   type RoomScan,
   type ScanMode,
   turnAngle,
@@ -250,7 +249,7 @@ export async function startScan(
     }
     if (!result) return false;
     for (const point of result.points) {
-      addPoint(map, positions, new DOMPointReadOnly(...point), MIN_HITS);
+      addPoint(map, positions, new DOMPointReadOnly(...point));
     }
     snapshots++;
     geometry.setDrawRange(0, map.size);
@@ -428,9 +427,9 @@ function readCamera(
   }
 }
 
-function addPoint(map: VoxelMap, positions: Float32Array, p: DOMPointReadOnly, weight = 1): void {
+function addPoint(map: VoxelMap, positions: Float32Array, p: DOMPointReadOnly): void {
   const before = map.size;
-  if (map.add(p.x, p.y, p.z, weight) === "confirmed") {
+  if (map.add(p.x, p.y, p.z) === "confirmed") {
     const [x, y, z] = voxelCentre(...voxelOf(p.x, p.y, p.z));
     positions.set([x, y, z], before * 3);
   }

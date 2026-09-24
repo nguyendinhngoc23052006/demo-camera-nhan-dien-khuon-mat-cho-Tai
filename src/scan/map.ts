@@ -86,14 +86,13 @@ export class VoxelMap {
   private confirmedCount = 0;
 
   /**
-   * Counts `weight` hits (default one measurement). "confirmed" means the voxel just reached
-   * MIN_HITS and should now be drawn.
+   * Counts one hit. "confirmed" means the voxel just reached MIN_HITS and should now be drawn.
    */
-  add(x: number, y: number, z: number, weight = 1): AddResult {
+  add(x: number, y: number, z: number): AddResult {
     const [i, j, k] = voxelOf(x, y, z);
     const key = voxelKey(i, j, k);
     const before = this.hits.get(key) ?? 0;
-    const hits = before + weight;
+    const hits = before + 1;
     if (before === 0 && this.hits.size >= MAX_VOXELS * 4) return "full";
     this.hits.set(key, hits);
     if (!(before < MIN_HITS && hits >= MIN_HITS)) return "added";

@@ -8,6 +8,7 @@ import {
   MAX_RANGE,
   MIN_HITS,
   MIN_RANGE,
+  OBSTACLE_MIN_HEIGHT,
   transformPoint,
   turnAngle,
   unproject,
@@ -355,15 +356,6 @@ describe("turnAngle", () => {
   });
 });
 
-describe("VoxelMap weights", () => {
-  it("confirms a voxel at once when one weighted hit carries MIN_HITS", () => {
-    const map = new VoxelMap();
-    expect(map.add(0.01, 0.01, 0.01, MIN_HITS)).toBe("confirmed");
-    expect(map.add(0.01, 0.01, 0.01, MIN_HITS)).toBe("added");
-    expect(map.size).toBe(1);
-  });
-});
-
 describe("snapshotPoints on the simulated room", () => {
   // A camera image's depth estimate: true inverse depth under an unknown scale and shift.
   const SIZE = 160;
@@ -421,6 +413,24 @@ describe("snapshotPoints on the simulated room", () => {
     expect(Math.max(...depths)).toBeLessThanOrEqual(limit + 1e-9);
   });
 
+  it("fills surfaces with connected blocks, not a sparse lattice", () => {
+    // One snapshot is all a direction gets in a one-spot scan: its points must cover surfaces
+    // densely enough that each shown block has neighbours, and stray points must not show.
+    const map = new VoxelMap();
+    for (const p of snapshotPoints(snapshot, hits)?.points ?? []) map.add(...p);
+    const shown = [...map.confirmed()];
+    const keys = new Set(shown.map((v) => voxelKey(...v)));
+    const isolated = shown.filter(([i, j, k]) => {
+      for (let a = -1; a <= 1; a++)
+        for (let b = -1; b <= 1; b++)
+          for (let c = -1; c <= 1; c++)
+            if ((a || b || c) && keys.has(voxelKey(i + a, j + b, k + c))) return false;
+      return true;
+    });
+    expect(shown.length).toBeGreaterThan(2000);
+    expect(isolated.length / shown.length).toBeLessThan(0.02);
+  });
+
   it("gives up when too few hits land in the picture", () => {
     expect(snapshotPoints(snapshot, hits.slice(0, 3))).toBeNull();
   });
@@ -435,5 +445,7 @@ describe("snapshotPoints on the simulated room", () => {
     expect(points.length).toBeGreaterThan(1000);
     const off = points.filter((p) => surfaceDistance(p) > VOXEL_SIZE * 2);
     expect(off.length / points.length).toBeLessThan(0.05);
+    // Nothing lies beyond the floor, and floor-level noise lies exactly on it.
+    expect(points.filter((p) => p[1] < 0 || (p[1] > 0 && p[1] < OBSTACLE_MIN_HEIGHT))).toEqual([]);
   });
 });

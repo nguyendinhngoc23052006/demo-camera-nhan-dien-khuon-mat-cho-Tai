@@ -4,7 +4,7 @@
 // scaled by where the floor must be (align.ts). No position tracking, so everything is seen from
 // one spot. Camera frames are used once and discarded; only the room's shape is kept, in memory.
 import { floorHits, snapshotPoints } from "./align";
-import { MAX_TURN_RATE, MIN_HITS, type RoomScan, turnAngle, type Vec3, VoxelMap } from "./map";
+import { MAX_TURN_RATE, type RoomScan, turnAngle, type Vec3, VoxelMap } from "./map";
 import { cameraProjection, orientationPose, SPOT_EYE_HEIGHT } from "./orientation";
 import type { ScanProgress, SnapshotState } from "./scanner";
 
@@ -159,7 +159,7 @@ export async function startSpotScan(
         snapshotState = "unaligned";
         return;
       }
-      for (const [x, y, z] of result.points) map.add(x, y, z, MIN_HITS);
+      for (const [x, y, z] of result.points) map.add(x, y, z);
       shots.push(viewToWorld);
       snapshotState = "ready";
     } catch (error) {
