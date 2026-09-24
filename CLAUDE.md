@@ -1,13 +1,15 @@
 # CLAUDE.md — the rules this project obeys
 
 Face-recognition demo for Tài. A friend adds a face (photo + name); the webcam labels whoever it
-sees. Everything happens inside one browser tab; Cloudflare Pages only serves the static files.
+sees. A second mode rebuilds the room in 3D on Android phones (WebXR). Everything happens inside
+one browser tab; Cloudflare Pages only serves the static files.
 
 ## Stack
 
 Vite + vanilla TypeScript · Biome · Vitest · opencv.js (`@techstark/opencv-js`) running the OpenCV
-Zoo models YuNet + SFace · Cloudflare Pages Git build (`npm run build` → `dist`) · Node from
-`.node-version` (Pages and CI both read it). Nothing else.
+Zoo models YuNet + SFace · three.js (3D room only, loaded when that tab opens) · WebXR
+immersive-ar with CPU depth sensing · Cloudflare Pages Git build (`npm run build` → `dist`) ·
+Node from `.node-version` (Pages and CI both read it). Nothing else.
 
 ## The rules that cannot be broken
 
@@ -20,14 +22,18 @@ Zoo models YuNet + SFace · Cloudflare Pages Git build (`npm run build` → `dis
 3. **Tests are relative to the constants** (`MATCH_THRESHOLD - 0.01`), never literal numbers, so
    re-tuning a constant never touches a test.
 4. **One door each.** `src/vision.ts` is the only file touching OpenCV; `src/gallery.ts` the
-   only file touching storage.
+   only file touching storage; `src/scan/scanner.ts` the only file touching WebXR. Scan geometry
+   (depth → voxels → plan) stays pure in `src/scan/map.ts`, tested against a simulated room.
 5. **Names reach the screen via `textContent` or canvas `fillText` only** — never `innerHTML` with data.
 6. **Models are pinned by checksum.** opencv.js is pinned exactly in `package.json`; YuNet and
    SFace live in `models/` (not on npm) with their licences. `scripts/copy-models.mjs` verifies all
    three SHA-256s and copies them to `public/` at dev/build time. Never a CDN. A new model means
    re-tuning the constants on a multi-ethnic test set, judged by the worst group.
-7. **No audio, nothing recorded.** Camera frames are analysed and discarded.
-8. **Fail on screen.** Models, camera and storage failures are visible messages, not console lines.
+7. **No audio, nothing recorded.** Camera frames are analysed and discarded. A room scan keeps
+   only the room's shape (5 cm blocks and the walked path) in memory; it is never saved or sent.
+8. **The 3D room is a map, never a substitute for looking.** Copy must not suggest walking by the
+   model alone: scans age, and glass, thin objects and stair edges can be missing.
+9. **Fail on screen.** Models, camera and storage failures are visible messages, not console lines.
 
 ## How you work
 

@@ -65,8 +65,28 @@ deploys there too (a Worker with only static assets) — ask Claude if you want 
   another tab, browser or device starts empty; nothing is shared.
 - Closing the tab erases every face. Reloading keeps them.
 - The camera needs HTTPS (or `localhost`). `*.pages.dev` is HTTPS. Allow the camera when asked.
-- The first load downloads about 22 MB (OpenCV plus two face models); wait for the loading status to finish.
+- The first load downloads about 14 MB (OpenCV plus two face models, 22 MB unpacked); wait for the loading status to finish.
 - Best results: good light, face the camera, 2–3 photos per person from slightly different angles.
+
+## 3D room (Android phones)
+
+The **3D room** tab rebuilds the room you are in as a 3D model and a top-down map.
+
+1. Open the site in **Chrome on an Android phone with ARCore** (Google Play Services for AR).
+   iPhones and computers show "Room scans need an Android phone": Safari and desktop browsers have
+   no WebXR AR, so a web page there cannot track where the phone is.
+2. **3D room** → **Rebuild the room in 3D** → allow the camera.
+3. Walk slowly around the room, pointing the phone at the walls, the floor and the furniture.
+   Green dots show what has been captured. "Turning too fast" means depth is being skipped.
+4. **Done** (or the phone's Back button). The room appears in **3D** (drag to turn, pinch to zoom)
+   and as a **Map**: light = floor seen, white = something between knee and head height, green =
+   the path you walked.
+
+It is a snapshot for finding your way around on screen, not a replacement for looking: people and
+chairs move after the scan, and glass, thin poles and stair edges often don't show up. Only the
+room's shape is kept, in memory, and it is gone when you leave the page.
+*Verified: 2026-09-24 against the WebXR Depth Sensing spec (immersive-web/depth-sensing) and MDN
+browser-compat-data 8.1.2 (depth sensing: Chrome Android 90+; not Safari or Firefox).*
 
 ## Tuning
 
@@ -101,7 +121,8 @@ are not on npm; sources and licences in `models/README.md`) and of opencv.js fro
 then copies them into `public/` (gitignored). A changed file fails the build. `.github/workflows/ci.yml` runs lint → typecheck → test → build
 on every pull request and push to `main`. Code map: `src/core/faces.ts` rules · `src/vision.ts`
 OpenCV · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camera.ts` Camera ·
-`src/main.ts` tabs and status.
+`src/main.ts` tabs and status · `src/scan/map.ts` room-scan geometry · `src/scan/scanner.ts`
+WebXR · `src/scan/viewer.ts` 3D view and map · `src/scan/room.ts` the 3D room tab.
 
 ## Undo
 
@@ -120,6 +141,9 @@ OpenCV · `src/gallery.ts` storage · `src/enroll.ts` Add a face · `src/camera.
   face print takes roughly 60–110 KB, so about **50–90 photos** fit. Past that: "Storage is full —
   remove someone first."
 - It is a demo, not a lock: never use it to grant access to anything.
+
+- **Room scan on an unsupported phone** — the tab says why ("needs an Android phone", "can't
+  measure depth"). A scan stops adding blocks at a fixed cap and asks you to tap Done.
 
 ## Privacy
 

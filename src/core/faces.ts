@@ -3,7 +3,7 @@
 // ethnic groups, choosing values by the WORST group, not the average.
 /**
  * Max distance to accept a face as someone. OpenCV's published SFace threshold (cosine similarity
- * 0.363); it kept every group's false-match rate at or below 1%.
+ * 0.363); every group's false-match rate came out at about 1% (worst group 1.01%).
  */
 export const MATCH_THRESHOLD = 0.637;
 /** The best person must beat the runner-up person by at least this much, or the answer is "unsure". */

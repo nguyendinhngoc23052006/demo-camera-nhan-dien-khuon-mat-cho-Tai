@@ -376,7 +376,7 @@ h2 {
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-1);
   margin-bottom: var(--space-5);
   padding: var(--space-1);
@@ -387,7 +387,7 @@ h2 {
 @media (min-width: 640px) {
   .tabs {
     display: inline-grid;
-    grid-template-columns: repeat(2, minmax(9.5rem, auto));
+    grid-template-columns: repeat(3, minmax(9.5rem, auto));
   }
 }
 
@@ -409,6 +409,14 @@ h2 {
 
 .tab:hover {
   color: var(--ink);
+}
+
+/* Three tabs at 360 px: keep each label on one line. */
+@media (max-width: 420px) {
+  .tab {
+    padding: 0 var(--space-2);
+    white-space: nowrap;
+  }
 }
 
 .tab[aria-selected="true"] {
@@ -595,6 +603,124 @@ h2 {
   }
 
   .legend {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* 3D room */
+
+.room-stage {
+  --plan-floor: #3a3934;
+  --plan-wall: #f4f3ef;
+}
+
+.room-stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.room-stage[data-state="done"] .stage-panel {
+  display: none;
+}
+
+/* The camera rule above hides stage canvases unless the camera runs; a finished scan shows them. */
+.room-stage[data-state="done"] canvas {
+  visibility: visible;
+}
+
+.segmented {
+  display: inline-grid;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  grid-template-columns: 1fr 1fr;
+  padding: var(--space-1);
+  border-radius: 12px;
+  background: var(--sunken);
+}
+
+.segmented button {
+  min-width: 4.5rem;
+  min-height: 44px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.room-stats {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.room-note {
+  max-width: 62ch;
+  margin-top: var(--space-3);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* Shown over the camera by the browser while scanning (WebXR DOM overlay). */
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: max(var(--space-5), env(safe-area-inset-top)) var(--space-4)
+    max(var(--space-5), env(safe-area-inset-bottom));
+  color: #fff;
+  pointer-events: none;
+}
+
+.scan-top {
+  align-self: center;
+  max-width: 34ch;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: rgb(0 0 0 / 0.55);
+  text-align: center;
+}
+
+.scan-status {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-status[data-tone="warn"] {
+  color: var(--amber);
+}
+
+.scan-hint {
+  margin-top: var(--space-1);
+  color: rgb(255 255 255 / 0.8);
+  font-size: 0.875rem;
+}
+
+.scan-done {
+  align-self: center;
+  min-width: 12rem;
+  min-height: 52px;
+  pointer-events: auto;
+}
+
+@media (max-width: 559px) {
+  .room-stats {
     width: 100%;
     margin-left: 0;
   }
