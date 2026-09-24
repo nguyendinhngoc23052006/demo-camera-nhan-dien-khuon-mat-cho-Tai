@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EXTRAPOLATION_MARGIN, snapshotPoints } from "./align";
+import { EXTRAPOLATION_MARGIN, floorHits, snapshotPoints } from "./align";
 import {
   columnKey,
   estimateFloorY,
@@ -423,5 +423,17 @@ describe("snapshotPoints on the simulated room", () => {
 
   it("gives up when too few hits land in the picture", () => {
     expect(snapshotPoints(snapshot, hits.slice(0, 3))).toBeNull();
+  });
+
+  it("finds the scale from the floor alone, with the table in the way (one-spot scan)", () => {
+    const floor = floorHits(viewToWorld, perspective());
+    expect(floor.every((h) => h[1] === 0)).toBe(true);
+    // Rays that meet the table or a wall's foot first sit just nearer than the floor: tolerated.
+    const result = snapshotPoints(snapshot, floor, true);
+    expect(Math.abs((result?.fit.scale ?? 0) / SCALE - 1)).toBeLessThan(0.03);
+    const points = result?.points ?? [];
+    expect(points.length).toBeGreaterThan(1000);
+    const off = points.filter((p) => surfaceDistance(p) > VOXEL_SIZE * 2);
+    expect(off.length / points.length).toBeLessThan(0.05);
   });
 });

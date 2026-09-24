@@ -1,5 +1,6 @@
-// The "3D room" tab: checks the device, runs a scan, then shows the result. The heavy parts
-// (three.js, WebXR) load only when this tab is first opened.
+// The "3D room" tab: checks the device, runs a scan, then shows the result. Phones with AR scan
+// while walking (scanner.ts); others scan from one spot (spot.ts). The heavy parts (three.js,
+// WebXR, the depth model) load only when this tab is first opened.
 import { type RoomScan, VOXEL_SIZE } from "./map";
 import type { ScanProgress } from "./scanner";
 import type { Viewer, ViewMode } from "./viewer";
@@ -22,8 +23,8 @@ type Tone = "plain" | "busy" | "error";
 const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: Tone }> = {
   checking: { title: "Checking this device…", text: "", tone: "busy" },
   unsupported: {
-    title: "Room scans need an Android phone",
-    text: "Open this page in Chrome on an Android phone with Google Play Services for AR. iPhones and computers can't scan a room from a web page.",
+    title: "Room scans need a phone",
+    text: "Open this page on a phone. A computer can't tell which way it points, so it can't scan a room.",
     tone: "plain",
   },
   ready: {
@@ -48,7 +49,7 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
   },
   denied: {
     title: "Camera access is blocked",
-    text: "Allow the camera for this site in Chrome's settings, then try again.",
+    text: "Allow the camera (and, on iPhone, motion sensors) for this site in the browser's settings, then try again.",
     tone: "error",
   },
   // Chrome can report AR as available and still refuse to start it, typically when Google Play
@@ -70,6 +71,12 @@ const COPY: Record<Exclude<State, "done">, { title: string; text: string; tone: 
   },
 };
 
+const SPOT_READY =
+  "Stand in the middle of the room with the phone at chest height and turn slowly on the spot. When you tap Done, the room appears here in 3D and as a map.";
+const NO_AR_SPOT =
+  "It needs Google Play Services for AR, which this phone can't install. You can still scan from one spot: the room as seen from where you stand.";
+const SPOT_HINT =
+  "Stay on one spot, phone at chest height, tilted a little down so the floor shows. Turn slowly and pause for a second at each new direction. Tap Done when you have turned all the way round.";
 const DEPTH_HINT =
   "Walk slowly and point the phone at the walls, the floor and the furniture. Tap Done, or press Back, when you have covered the room.";
 const SURFACES_HINT =
@@ -93,6 +100,7 @@ export function createRoomView() {
   const model = byId<HTMLCanvasElement>("room-model");
   const plan = byId<HTMLCanvasElement>("room-plan");
   const overlay = byId<HTMLDivElement>("scan-overlay");
+  const video = byId<HTMLVideoElement>("scan-video");
   const status = byId<HTMLParagraphElement>("scan-status");
   const hint = byId<HTMLParagraphElement>("scan-hint");
   const done = byId<HTMLButtonElement>("scan-done");
@@ -100,6 +108,9 @@ export function createRoomView() {
   let state: State = "checking";
   let checked = false;
   let scanner: typeof import("./scanner") | null = null;
+  let spot: typeof import("./spot") | null = null;
+  // "ar": walk around with WebXR; "spot": turn on one spot, for phones without AR.
+  let method: "ar" | "spot" = "ar";
   let viewer: Viewer | null = null;
   let scan: RoomScan | null = null;
 
@@ -114,7 +125,11 @@ export function createRoomView() {
     }
     const idle = next === "ready" || next === "empty" || next === "failed" || next === "done";
     scanButton.disabled = !(idle || next === "denied" || next === "no-ar" || next === "no-depth");
-    scanButton.textContent = scan ? "Scan again" : "Rebuild the room in 3D";
+    scanButton.textContent = scan
+      ? "Scan again"
+      : method === "spot"
+        ? "Scan from one spot"
+        : "Rebuild the room in 3D";
     scanButton.hidden = next === "unsupported" || next === "checking";
     modes.hidden = !(next === "done" && scan);
     stats.hidden = modes.hidden;
@@ -126,21 +141,33 @@ export function createRoomView() {
     setState("checking");
     try {
       scanner = await import("./scanner");
-      setState((await scanner.canScan()) ? "ready" : "unsupported");
+      if (await scanner.canScan()) setState("ready");
+      else if (await spotAvailable()) setState("ready", SPOT_READY);
+      else setState("unsupported");
     } catch (error) {
       console.error(error);
       setState("failed", "The 3D tools didn't load. Reload the page and try again.");
     }
   }
 
+  /** Switches to the one-spot scan if this device can do it. */
+  async function spotAvailable(): Promise<boolean> {
+    spot ??= await import("./spot");
+    if (!(await spot.canSpotScan())) return false;
+    method = "spot";
+    return true;
+  }
+
   function showProgress(p: ScanProgress): void {
     const blocks = p.voxels.toLocaleString();
     hint.textContent =
-      p.mode === "depth"
-        ? DEPTH_HINT
-        : p.snapshotState === "unavailable"
-          ? SURFACES_ONLY_HINT
-          : SURFACES_HINT;
+      p.mode === "spot"
+        ? SPOT_HINT
+        : p.mode === "depth"
+          ? DEPTH_HINT
+          : p.snapshotState === "unavailable"
+            ? SURFACES_ONLY_HINT
+            : SURFACES_HINT;
     if (p.full) {
       status.dataset.tone = "warn";
       status.textContent = `Scan is full (${blocks} blocks) — tap Done`;
@@ -155,7 +182,16 @@ export function createRoomView() {
       status.textContent = "Hold still — measuring…";
     } else if (p.snapshotState === "unaligned") {
       status.dataset.tone = "warn";
-      status.textContent = "Hold still with the floor and a wall or furniture in view";
+      status.textContent =
+        p.mode === "spot"
+          ? "Tilt down so more floor shows, then hold still"
+          : "Hold still with the floor and a wall or furniture in view";
+    } else if (p.snapshotState === "covered") {
+      status.dataset.tone = "warn";
+      status.textContent = "Already captured — turn to a new direction";
+    } else if (p.mode === "spot" && p.snapshotState === "unavailable") {
+      status.dataset.tone = "warn";
+      status.textContent = "The depth model didn't load — tap Done and try again";
     } else if (p.snapshotState === "loading") {
       delete status.dataset.tone;
       status.textContent = `Scanning — ${blocks} blocks (loading the depth model…)`;
@@ -163,7 +199,7 @@ export function createRoomView() {
       delete status.dataset.tone;
       const shots = p.snapshots === 1 ? "1 snapshot" : `${p.snapshots} snapshots`;
       status.textContent =
-        p.mode === "surfaces" && p.snapshots > 0
+        p.mode !== "depth" && p.snapshots > 0
           ? `Scanning — ${blocks} blocks · ${shots}`
           : `Scanning — ${blocks} blocks`;
     }
@@ -172,11 +208,17 @@ export function createRoomView() {
   async function start(): Promise<void> {
     if (!scanner) return;
     setState("starting");
+    overlay.dataset.mode = method;
+    video.hidden = method !== "spot";
     overlay.hidden = false;
     status.textContent = "Starting…";
+    hint.textContent = method === "spot" ? SPOT_HINT : DEPTH_HINT;
     let result: RoomScan;
     try {
-      const running = scanner.startScan(overlay, showProgress);
+      const running =
+        method === "spot" && spot
+          ? spot.startSpotScan(video, showProgress)
+          : scanner.startScan(overlay, showProgress);
       setState("scanning");
       result = await running;
     } catch (error) {
@@ -186,8 +228,11 @@ export function createRoomView() {
         error instanceof Error && error.message ? ` Chrome said: "${error.message}"` : "";
       if (name === "NotAllowedError" || name === "SecurityError") setState("denied");
       else if (error instanceof scanner.CannotMapError) setState("no-depth");
-      else if (name === "NotSupportedError") setState("no-ar", COPY["no-ar"].text + said);
-      else {
+      else if (spot && error instanceof spot.NoMotionSensorError) setState("unsupported");
+      else if (name === "NotSupportedError") {
+        const fallback = await spotAvailable().catch(() => false);
+        setState("no-ar", (fallback ? NO_AR_SPOT : COPY["no-ar"].text) + said);
+      } else {
         console.error(error);
         setState("failed", COPY.failed.text + said);
       }
@@ -214,7 +259,10 @@ export function createRoomView() {
   }
 
   scanButton.addEventListener("click", () => void start());
-  done.addEventListener("click", () => scanner?.finishScan());
+  done.addEventListener("click", () => {
+    scanner?.finishScan();
+    spot?.finishSpotScan();
+  });
   modes.addEventListener("click", (event) => {
     const mode = (event.target as HTMLElement).closest("button")?.dataset.mode;
     if (mode === "3d" || mode === "map") setMode(mode);
@@ -246,6 +294,7 @@ function describe(scan: RoomScan): string {
   const metres = (span: number) => ((span + 1) * VOXEL_SIZE).toFixed(1);
   const size = `${scan.voxels.length.toLocaleString()} blocks · about ${metres(maxX - minX)} × ${metres(maxZ - minZ)} m`;
   if (scan.mode === "depth") return size;
+  if (scan.mode === "spot") return `${size} · from one spot, sizes approximate`;
   if (scan.snapshots === 0) return `${size} · flat surfaces only`;
   return `${size} · ${scan.snapshots === 1 ? "1 snapshot" : `${scan.snapshots} snapshots`}`;
 }

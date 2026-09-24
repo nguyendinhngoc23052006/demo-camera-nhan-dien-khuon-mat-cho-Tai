@@ -55,9 +55,16 @@ const RECENT_HITS_MS = 2500;
 /**
  * "unaligned": the last snapshot couldn't be scaled — the measured points in view were all at one
  * distance (e.g. facing a bare wall). "unavailable": this phone gives no camera image or the model
- * didn't load; surfaces still work.
+ * didn't load; surfaces still work. "covered": the one-spot scan already has this direction.
  */
-export type SnapshotState = "off" | "loading" | "ready" | "measuring" | "unaligned" | "unavailable";
+export type SnapshotState =
+  | "off"
+  | "loading"
+  | "ready"
+  | "measuring"
+  | "unaligned"
+  | "unavailable"
+  | "covered";
 
 export interface ScanProgress {
   mode: ScanMode;
